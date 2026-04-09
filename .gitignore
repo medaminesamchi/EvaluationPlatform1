@@ -1,0 +1,28 @@
+# ============== Backend (Java / Spring Boot / Maven) ==============
+EvaluationPlatformBackend/target/
+EvaluationPlatformBackend/.idea/
+EvaluationPlatformBackend/*.iml
+EvaluationPlatformBackend/*.iws
+EvaluationPlatformBackend/*.ipr
+EvaluationPlatformBackend/compile_output.txt
+EvaluationPlatformBackend/compile_error_output.txt
+EvaluationPlatformBackend/uploads/
+
+# ============== Frontend (Node / React) ==============
+front-end/node_modules/
+front-end/build/
+front-end/.pnp
+front-end/.pnp.js
+front-end/coverage/
+front-end/npm-debug.log*
+front-end/yarn-debug.log*
+front-end/yarn-error.log*
+
+# ============== General ==============
+.DS_Store
+*.log
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
