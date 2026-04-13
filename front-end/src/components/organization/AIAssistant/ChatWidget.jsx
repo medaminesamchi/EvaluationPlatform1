@@ -176,7 +176,7 @@ INSTRUCTIONS:
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-5-20250929',
+          model: 'gemini-1.5-pro',
           max_tokens: 1000,
           system: buildSystemPrompt(),
           messages: conversationHistory,

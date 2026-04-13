@@ -2,6 +2,8 @@ package com.governance.evaluation.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
+import org.hibernate.annotations.NotFound;
+import org.hibernate.annotations.NotFoundAction;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -16,7 +18,8 @@ public class Evaluation {
     
     @ManyToOne
     @JoinColumn(name = "organization_id", nullable = false)
-    private User organization;
+    @NotFound(action = NotFoundAction.IGNORE)
+    private Organization organization;
     
     @Column(name = "name", nullable = false)
     private String name;
@@ -57,11 +60,11 @@ public class Evaluation {
         this.evaluationId = evaluationId;
     }
 
-    public User getOrganization() {
+    public Organization getOrganization() {
         return organization;
     }
 
-    public void setOrganization(User organization) {
+    public void setOrganization(Organization organization) {
         this.organization = organization;
     }
 

@@ -23,6 +23,9 @@ public class EvaluationResult {
     @Column(name = "total_score")
     private Double totalScore;
 
+    @Column(name = "final_score")
+    private Double finalScore;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "certification_level")
     private CertificationLevel certificationLevel;

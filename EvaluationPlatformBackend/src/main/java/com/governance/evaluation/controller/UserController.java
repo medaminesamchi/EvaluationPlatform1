@@ -36,9 +36,13 @@ public class UserController {
             dto.put("email", user.getEmail());
             dto.put("role", user.getRole().toString());
             dto.put("isActive", user.getIsActive());
+            if (user instanceof OrganizationAdmin orgAdmin) {
+                dto.put("position", orgAdmin.getPosition());
+                dto.put("grade", orgAdmin.getGrade());
+            }
 
-            if (user instanceof Organization) {
-                Organization org = (Organization) user;
+            if (user.getRole() == UserRole.ORGANIZATION && user instanceof OrganizationAdmin orgAdmin && orgAdmin.getOrganization() != null) {
+                Organization org = orgAdmin.getOrganization();
                 dto.put("sector", org.getSector());
                 dto.put("address", org.getAddress());
                 dto.put("phone", org.getPhone());
@@ -46,6 +50,8 @@ public class UserController {
                 dto.put("description", org.getDescription());
                 dto.put("size", org.getSize());
                 dto.put("website", org.getWebsite());
+                dto.put("faxNumber", org.getFaxNumber());
+                dto.put("employeeCount", org.getEmployeeCount());
             } else if (user instanceof Evaluator) {
                 Evaluator eval = (Evaluator) user;
                 dto.put("department", eval.getDepartment());
@@ -70,15 +76,24 @@ public class UserController {
 
             if (updates.containsKey("name") && updates.get("name") != null)
                 user.setName((String) updates.get("name"));
+            if (user instanceof OrganizationAdmin orgAdmin) {
+                if (updates.containsKey("position")) orgAdmin.setPosition((String) updates.get("position"));
+                if (updates.containsKey("grade")) orgAdmin.setGrade((String) updates.get("grade"));
+            }
 
-            if (user instanceof Organization) {
-                Organization org = (Organization) user;
+            if (user.getRole() == UserRole.ORGANIZATION && user instanceof OrganizationAdmin orgAdmin && orgAdmin.getOrganization() != null) {
+                Organization org = orgAdmin.getOrganization();
                 if (updates.containsKey("sector"))      org.setSector((String) updates.get("sector"));
                 if (updates.containsKey("address"))     org.setAddress((String) updates.get("address"));
                 if (updates.containsKey("phone"))       org.setPhone((String) updates.get("phone"));
                 if (updates.containsKey("description")) org.setDescription((String) updates.get("description"));
                 if (updates.containsKey("size"))        org.setSize((String) updates.get("size"));
                 if (updates.containsKey("website"))     org.setWebsite((String) updates.get("website"));
+                if (updates.containsKey("faxNumber"))   org.setFaxNumber((String) updates.get("faxNumber"));
+                if (updates.containsKey("employeeCount")) {
+                    Object count = updates.get("employeeCount");
+                    if (count != null && !count.toString().isEmpty()) org.setEmployeeCount(Integer.parseInt(count.toString()));
+                }
                 if (updates.containsKey("dateOfFoundation")) {
                     String d = (String) updates.get("dateOfFoundation");
                     if (d != null && !d.isEmpty()) org.setDateOfFoundation(LocalDate.parse(d));

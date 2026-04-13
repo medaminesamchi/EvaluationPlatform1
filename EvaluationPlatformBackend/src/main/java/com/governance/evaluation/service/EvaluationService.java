@@ -31,7 +31,7 @@ public class EvaluationService {
 
     @Transactional(readOnly = true)
     public List<Evaluation> findByOrganizationId(Long organizationId) {
-        return evaluationRepository.findByOrganization_UserId(organizationId);
+        return evaluationRepository.findByOrganization_OrganizationId(organizationId);
     }
 
     @Transactional(readOnly = true)

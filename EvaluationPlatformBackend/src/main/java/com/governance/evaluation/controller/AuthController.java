@@ -93,17 +93,32 @@ public class AuthController {
             User user;
             switch (roleStr.toUpperCase()) {
                 case "ORGANIZATION": {
+                    OrganizationAdmin orgAdmin = new OrganizationAdmin();
                     Organization org = new Organization();
+                    org.setName(registerRequest.containsKey("organizationName") ? (String) registerRequest.get("organizationName") : name);
+                    org.setEmail(registerRequest.containsKey("organizationEmail") ? (String) registerRequest.get("organizationEmail") : email);
                     if (registerRequest.get("sector") != null)
                         org.setSector((String) registerRequest.get("sector"));
                     if (registerRequest.get("address") != null)
                         org.setAddress((String) registerRequest.get("address"));
                     if (registerRequest.get("phone") != null)
                         org.setPhone((String) registerRequest.get("phone"));
+                    if (registerRequest.get("faxNumber") != null)
+                        org.setFaxNumber((String) registerRequest.get("faxNumber"));
+                    if (registerRequest.get("employeeCount") != null)
+                        org.setEmployeeCount(Integer.parseInt(registerRequest.get("employeeCount").toString()));
                     String dateStr = (String) registerRequest.get("dateOfFoundation");
                     if (dateStr != null && !dateStr.isEmpty())
                         org.setDateOfFoundation(LocalDate.parse(dateStr));
-                    user = org;
+                    
+                    orgAdmin.setOrganization(org);
+                    
+                    if (registerRequest.get("position") != null)
+                        orgAdmin.setPosition((String) registerRequest.get("position"));
+                    if (registerRequest.get("grade") != null)
+                        orgAdmin.setGrade((String) registerRequest.get("grade"));
+                    
+                    user = orgAdmin;
                     break;
                 }
                 case "EVALUATOR": {

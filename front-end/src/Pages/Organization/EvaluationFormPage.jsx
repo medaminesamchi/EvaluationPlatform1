@@ -64,6 +64,13 @@ const EvaluationFormPage = () => {
         const map = {};
         existing.forEach(r => {
           const key = `${r.principleId}-${r.practiceId}-${r.criterionId}`;
+          // Support both legacy single evidenceFile and new evidenceFiles array
+          let files = [];
+          if (r.evidenceFiles) {
+            files = Array.isArray(r.evidenceFiles) ? r.evidenceFiles : r.evidenceFiles.split(',').filter(Boolean);
+          } else if (r.evidenceFile) {
+            files = [r.evidenceFile];
+          }
           map[key] = {
             principleId: r.principleId,
             practiceId: r.practiceId,
@@ -71,7 +78,8 @@ const EvaluationFormPage = () => {
             maturityLevel: r.maturityLevel,
             comments: r.comments || '',
             evidence: r.evidence || '',
-            evidenceFile: r.evidenceFile || null,
+            evidenceFiles: files,
+            evidenceFileNames: files,
           };
         });
         setResponses(map);
@@ -81,7 +89,12 @@ const EvaluationFormPage = () => {
       if (data.status === 'PROOF_REQUESTED') {
         try {
           const reviews = await evaluationService.getCriterionReviews(id);
-          const flagged = reviews.filter(r => r.proofRequested);
+          const flagged = reviews.map(r => {
+            if (typeof r.rejectedFiles === 'string') {
+              try { r.rejectedFiles = JSON.parse(r.rejectedFiles); } catch(e) { r.rejectedFiles = []; }
+            }
+            return r;
+          }).filter(r => r.proofRequested || r.adjustedMaturityLevel !== undefined || (r.rejectedFiles && r.rejectedFiles.length > 0));
           setProofRequestedCriteria(flagged);
         } catch (e) { /* no reviews */ }
       }
@@ -102,13 +115,12 @@ const EvaluationFormPage = () => {
     );
   };
 
-  const getProofComment = (principleId, practiceId, criterionId) => {
-    const found = proofRequestedCriteria.find(
+  const getReviewData = (principleId, practiceId, criterionId) => {
+    return proofRequestedCriteria.find(
       r => r.principleId == principleId &&
            r.practiceId == practiceId &&
            r.criterionId == criterionId
     );
-    return found?.proofRequestComment || '';
   };
 
   // In PROOF_REQUESTED mode, only allow editing flagged criteria
@@ -145,15 +157,20 @@ const EvaluationFormPage = () => {
     setUploadingKey(key);
     try {
       const result = await fileService.uploadFile(file, id, criterionId);
-      setResponses(prev => ({
-        ...prev,
-        [key]: {
-          ...prev[key],
-          principleId, practiceId, criterionId,
-          evidenceFile: result.filename,
-          evidenceFileName: result.originalFilename,
-        },
-      }));
+      setResponses(prev => {
+        const existing = prev[key] || {};
+        const prevFiles = existing.evidenceFiles || [];
+        const prevNames = existing.evidenceFileNames || [];
+        return {
+          ...prev,
+          [key]: {
+            ...existing,
+            principleId, practiceId, criterionId,
+            evidenceFiles: [...prevFiles, result.filename],
+            evidenceFileNames: [...prevNames, result.originalFilename || result.filename],
+          },
+        };
+      });
       // Clear evidence error for this key once file is uploaded
       setEvidenceErrors(prev => { const next = { ...prev }; delete next[key]; return next; });
     } catch (err) {
@@ -162,6 +179,22 @@ const EvaluationFormPage = () => {
     } finally {
       setUploadingKey(null);
     }
+  };
+
+  const handleRemoveFile = (principleId, practiceId, criterionId, fileIndex) => {
+    if (!isEditable(principleId, practiceId, criterionId)) return;
+    const key = `${principleId}-${practiceId}-${criterionId}`;
+    setResponses(prev => {
+      const existing = prev[key] || {};
+      const newFiles = [...(existing.evidenceFiles || [])];
+      const newNames = [...(existing.evidenceFileNames || [])];
+      newFiles.splice(fileIndex, 1);
+      newNames.splice(fileIndex, 1);
+      return {
+        ...prev,
+        [key]: { ...existing, evidenceFiles: newFiles, evidenceFileNames: newNames },
+      };
+    });
   };
 
   const togglePrinciple = (pid) => {
@@ -209,7 +242,7 @@ const EvaluationFormPage = () => {
               maturityLevel: r?.maturityLevel ?? 0,
               comments: r?.comments || '',
               evidence: r?.evidence || '',
-              evidenceFile: r?.evidenceFile || null,
+              evidenceFiles: r?.evidenceFiles || [],
             });
           });
         });
@@ -222,7 +255,7 @@ const EvaluationFormPage = () => {
         maturityLevel: r.maturityLevel ?? 0,
         comments: r.comments || '',
         evidence: r.evidence || '',
-        evidenceFile: r.evidenceFile || null,
+        evidenceFiles: r.evidenceFiles || [],
       }));
     }
     return list;
@@ -232,10 +265,10 @@ const EvaluationFormPage = () => {
     try {
       setSaving(true);
       await evaluationService.saveResponses(id, buildResponsesArray(false));
-      setSaveMessage('✅ Saved!');
+      setSaveMessage('Saved successfully!');
       setTimeout(() => setSaveMessage(''), 3000);
     } catch (err) {
-      setSaveMessage('❌ Save failed');
+      setSaveMessage('Save failed');
       setTimeout(() => setSaveMessage(''), 3000);
     } finally {
       setSaving(false);
@@ -279,7 +312,7 @@ const EvaluationFormPage = () => {
       const missingEvidence = allCriteria.filter(c => {
         const key = `${c.principleId}-${c.practiceId}-${c.criterionId}`;
         const r = responses[key];
-        if (r && (r.maturityLevel === 2 || r.maturityLevel === 3) && !r.evidenceFile) {
+        if (r && (r.maturityLevel === 2 || r.maturityLevel === 3) && (!r.evidenceFiles || r.evidenceFiles.length === 0)) {
           newEvidenceErrors[key] = true;
           return true;
         }
@@ -585,27 +618,42 @@ const EvaluationFormPage = () => {
                         const key = `${principle.id}-${practice.id}-${criterion.id}`;
                         const response = responses[key] || {};
                         const editable = isEditable(principle.id, practice.id, criterion.id);
+                        const reviewData = getReviewData(principle.id, practice.id, criterion.id);
                         const proofNeeded = isProofRequested(principle.id, practice.id, criterion.id);
-                        const proofComment = getProofComment(principle.id, practice.id, criterion.id);
                         const isLast = idx === practice.criteria.length - 1;
 
                         return (
                           <div key={criterion.id} style={{ ...styles.criterionBlock, ...(isLast ? { borderBottom: 'none' } : {}) }}>
 
-                            {/* Proof requested alert */}
-                            {proofNeeded && (
-                              <div style={styles.proofAlert}>
-                                🔴 <strong>Additional proof required:</strong> {proofComment || 'Please provide supporting evidence for this criterion.'}
+                            {/* Reviewer feedback alerts */}
+                            {(proofNeeded || reviewData?.adjustedMaturityLevel !== undefined || (reviewData?.rejectedFiles && reviewData.rejectedFiles.length > 0)) && (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px' }}>
+                                {reviewData?.adjustedMaturityLevel !== undefined && (
+                                  <div style={{ ...styles.proofAlert, background: '#fffbeb', border: '1px solid #fde68a', color: '#b45309' }}>
+                                    <strong>Warning - Maturity Level Adjusted:</strong> The evaluator adjusted the level from <strong>{response.maturityLevel}</strong> to <strong>{reviewData.adjustedMaturityLevel}</strong>. 
+                                    <br/>Reason: <em>{reviewData.adjustmentReason}</em>
+                                  </div>
+                                )}
+                                {reviewData?.proofRequested === true && (
+                                  <div style={styles.proofAlert}>
+                                    <strong>Action Required - General proof required:</strong> {reviewData.proofRequestComment || 'Please provide additional supporting evidence for this criterion.'}
+                                  </div>
+                                )}
+                                {reviewData?.rejectedFiles?.some(f => f.status === 'rejected') && (
+                                  <div style={styles.proofAlert}>
+                                    <strong>Action Required - Evidence Rejected:</strong> Specific files were rejected by the evaluator (see details below). Please upload appropriate replacements.
+                                  </div>
+                                )}
                               </div>
                             )}
 
                             <div style={styles.criterionText}>{criterion.text}</div>
                             {criterion.evidence && (
-                              <div style={styles.evidenceHint}>📎 Preuves attendues : {criterion.evidence}</div>
+                              <div style={styles.evidenceHint}>Expected Proof: {criterion.evidence}</div>
                             )}
                             {criterion.reference && (
                               <div style={{ ...styles.evidenceHint, fontStyle: 'normal', color: '#4b5563' }}>
-                                📚 Références : {criterion.reference}
+                                References: {criterion.reference}
                               </div>
                             )}
 
@@ -618,7 +666,7 @@ const EvaluationFormPage = () => {
                                 borderRadius: '8px', padding: '7px 10px', marginBottom: '8px',
                                 fontSize: '12px', color: '#dc2626', fontWeight: '600',
                               }}>
-                                🚨 Please select a maturity level (0, 1, 2, or 3) for this criterion.
+                                Alert: Please select a maturity level (0, 1, 2, or 3) for this criterion.
                               </div>
                             )}
 
@@ -639,7 +687,7 @@ const EvaluationFormPage = () => {
                                       {level.label.split(' - ')[1] || level.label}
                                     </div>
                                     {requiresEvidence && (
-                                      <div style={{ fontSize: '9px', color: selected ? c : '#9ca3af', marginTop: '3px', fontWeight: '600' }}>📎 req.</div>
+                                      <div style={{ fontSize: '9px', color: selected ? c : '#9ca3af', marginTop: '3px', fontWeight: '600' }}>Req.</div>
                                     )}
                                   </div>
                                 );
@@ -655,55 +703,97 @@ const EvaluationFormPage = () => {
                                 borderRadius: '8px', padding: '7px 10px', marginBottom: '8px', fontSize: '12px',
                                 color: evidenceErrors[key] ? '#dc2626' : '#92400e', fontWeight: '600',
                               }}>
-                                {evidenceErrors[key] ? '🚨' : '📎'}
-                                {evidenceErrors[key]
+                                {evidenceErrors[key] ? 'Alert:' : 'Note:'} {evidenceErrors[key]
                                   ? 'Evidence upload is mandatory for level 2 or 3 — please upload a file below.'
                                   : 'Level 2 & 3 require supporting evidence — please upload a document.'}
                               </div>
                             )}
 
-                            {/* File Upload */}
+                            {/* File Upload — Multiple files */}
                             {editable && (
                               <div style={{ marginBottom: '10px' }}>
                                 <div style={{ fontSize: '12px', fontWeight: '600', color: evidenceErrors[key] ? '#dc2626' : '#374151', marginBottom: '6px' }}>
-                                  📎 Upload Evidence{evidenceErrors[key] && <span style={{ color: '#dc2626', fontWeight: '700' }}> *</span>}
+                                  Upload Evidence{evidenceErrors[key] && <span style={{ color: '#dc2626', fontWeight: '700' }}> *</span>}
+                                  {response.evidenceFiles?.length > 0 && (
+                                    <span style={{ fontWeight: '400', color: '#6b7280', marginLeft: '6px' }}>({response.evidenceFiles.length} file{response.evidenceFiles.length > 1 ? 's' : ''})</span>
+                                  )}
                                 </div>
-                                {response.evidenceFile ? (
-                                  <div style={styles.uploadedFile}>
-                                    <span>✅</span>
-                                    <span style={{ flex: 1 }}>{response.evidenceFileName || response.evidenceFile}</span>
-                                    <label style={{ cursor: 'pointer', color: '#2563eb', fontSize: '12px' }}>
-                                      Change
-                                      <input type="file" style={{ display: 'none' }} accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-                                        onChange={e => handleFileUpload(principle.id, practice.id, criterion.id, e.target.files[0])} />
-                                    </label>
-                                  </div>
-                                ) : (
-                                  <label style={{
-                                    ...styles.uploadBox,
-                                    ...(evidenceErrors[key] ? { border: '2px dashed #ef4444', background: '#fff1f2' } : {}),
-                                  }}>
-                                    <input type="file" style={{ display: 'none' }} accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-                                      onChange={e => handleFileUpload(principle.id, practice.id, criterion.id, e.target.files[0])} />
-                                    {uploadingKey === key ? (
-                                      <div style={{ fontSize: '13px', color: '#6b7280' }}>⏳ Uploading...</div>
-                                    ) : (
-                                      <>
-                                        <div style={{ fontSize: '20px', marginBottom: '4px' }}>{evidenceErrors[key] ? '🚨' : '📎'}</div>
-                                        <div style={{ fontSize: '12px', color: evidenceErrors[key] ? '#dc2626' : '#9ca3af', fontWeight: evidenceErrors[key] ? '600' : '400' }}>
-                                          {evidenceErrors[key] ? 'Evidence required — click to upload (PDF, DOC, or image)' : 'Click to upload PDF, DOC, or image (max 10MB)'}
+
+                                {/* List of uploaded files */}
+                                {response.evidenceFiles?.length > 0 && (
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '6px' }}>
+                                    {response.evidenceFiles.map((fname, idx) => {
+                                      const rejectedData = reviewData?.rejectedFiles?.find(f => f.filename === fname);
+                                      if (evaluation?.status === 'PROOF_REQUESTED' && rejectedData?.status === 'valid') {
+                                        return null;
+                                      }
+                                      const isRejected = rejectedData?.status === 'rejected';
+                                      const displayName = (response.evidenceFileNames && response.evidenceFileNames[idx]) || fname;
+
+                                      return (
+                                        <div key={idx} style={{ 
+                                          ...styles.uploadedFile, 
+                                          ...(isRejected ? { background: '#fef2f2', border: '1px solid #fecaca' } : {}) 
+                                        }}>
+                                          <span style={{ fontSize: '13px', fontWeight: '700', color: isRejected ? '#dc2626' : '#059669' }}>
+                                            {isRejected ? 'Rejected' : '-'}
+                                          </span>
+                                          <div style={{ flex: 1, paddingLeft: '4px' }}>
+                                            <div style={{ fontSize: '13px', wordBreak: 'break-all', color: isRejected ? '#dc2626' : '#374151', textDecoration: isRejected ? 'line-through' : 'none' }}>
+                                              {displayName}
+                                            </div>
+                                            {isRejected && (
+                                              <div style={{ fontSize: '11px', color: '#dc2626', marginTop: '4px' }}>
+                                                <strong>Rejected:</strong> {rejectedData?.reason} {rejectedData?.comment && `— ${rejectedData.comment}`}
+                                              </div>
+                                            )}
+                                          </div>
+                                          {editable && (
+                                            <button
+                                              onClick={() => handleRemoveFile(principle.id, practice.id, criterion.id, idx)}
+                                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', fontSize: '14px', padding: '4px 8px', borderRadius: '4px' }}
+                                              title={isRejected ? "Remove rejected file" : "Remove file"}
+                                            >✕</button>
+                                          )}
                                         </div>
-                                      </>
-                                    )}
-                                  </label>
+                                      );
+                                    })}
+                                  </div>
                                 )}
+
+                                {/* Upload more button */}
+                                <label style={{
+                                  ...styles.uploadBox,
+                                  ...(evidenceErrors[key] ? { border: '2px dashed #ef4444', background: '#fff1f2' } : {}),
+                                }}>
+                                  <input type="file" style={{ display: 'none' }} accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                                    onChange={e => { handleFileUpload(principle.id, practice.id, criterion.id, e.target.files[0]); e.target.value = ''; }} />
+                                  {uploadingKey === key ? (
+                                    <div style={{ fontSize: '13px', color: '#6b7280' }}>⏳ Uploading...</div>
+                                  ) : (
+                                    <>
+                                      <div style={{ fontSize: '20px', marginBottom: '4px' }}>{evidenceErrors[key] ? '🚨' : '➕'}</div>
+                                      <div style={{ fontSize: '12px', color: evidenceErrors[key] ? '#dc2626' : '#9ca3af', fontWeight: evidenceErrors[key] ? '600' : '400' }}>
+                                        {response.evidenceFiles?.length > 0
+                                          ? 'Click to add another file (PDF, DOC, or image, max 10MB)'
+                                          : evidenceErrors[key]
+                                            ? 'Evidence required — click to upload (PDF, DOC, or image)'
+                                            : 'Click to upload PDF, DOC, or image (max 10MB)'}
+                                      </div>
+                                    </>
+                                  )}
+                                </label>
                               </div>
                             )}
 
-                            {/* View uploaded file if read-only */}
-                            {!editable && response.evidenceFile && (
-                              <div style={{ fontSize: '12px', color: '#059669', marginBottom: '8px' }}>
-                                ✅ Evidence uploaded: {response.evidenceFileName || response.evidenceFile}
+                            {/* View uploaded files if read-only */}
+                            {!editable && response.evidenceFiles?.length > 0 && (
+                              <div style={{ marginBottom: '8px' }}>
+                                {response.evidenceFiles.map((fname, idx) => (
+                                  <div key={idx} style={{ fontSize: '12px', color: '#059669', marginBottom: '2px' }}>
+                                    ✓ Evidence #{idx + 1}: {(response.evidenceFileNames && response.evidenceFileNames[idx]) || fname}
+                                  </div>
+                                ))}
                               </div>
                             )}
 
@@ -730,12 +820,12 @@ const EvaluationFormPage = () => {
           {!isReadOnly && (
             <div style={{ background: 'white', borderRadius: '12px', padding: '16px 20px', marginTop: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontSize: '13px', color: '#6b7280' }}>
-                {progress < 100 ? `${100 - progress}% remaining` : '✅ All criteria filled!'}
+                {progress < 100 ? `${100 - progress}% remaining` : '✓ All criteria filled!'}
               </span>
               <div style={{ display: 'flex', gap: '10px' }}>
-                <button style={styles.saveDraftBtn} onClick={handleSaveDraft} disabled={saving}>{saving ? '⏳' : '💾'} Save</button>
+                <button style={styles.saveDraftBtn} onClick={handleSaveDraft} disabled={saving}>{saving ? 'Saving...' : 'Save Draft'}</button>
                 <button style={styles.submitBtn} onClick={handleSubmit} disabled={submitting}>
-                  {submitting ? '⏳' : isProofMode ? '🔄 Resubmit' : '🚀 Submit'}
+                  {submitting ? 'Submitting...' : isProofMode ? 'Resubmit' : 'Submit'}
                 </button>
               </div>
             </div>

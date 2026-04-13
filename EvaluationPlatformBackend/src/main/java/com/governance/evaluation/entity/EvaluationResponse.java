@@ -38,8 +38,8 @@ public class EvaluationResponse {
     @Column(name = "comments", columnDefinition = "TEXT")
     private String comments;
 
-    @Column(name = "evidence_file") // ✅ NEW FIELD
-    private String evidenceFile;
+    @Column(name = "evidence_files", columnDefinition = "TEXT")
+    private String evidenceFiles;
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;

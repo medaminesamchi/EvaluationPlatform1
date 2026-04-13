@@ -43,6 +43,10 @@ public class EvaluatorCriterionReview {
     @Column(name = "proof_request_comment", columnDefinition = "TEXT")
     private String proofRequestComment;
 
+    // JSON string storing rejected files and their reasons
+    @Column(name = "rejected_files", columnDefinition = "TEXT")
+    private String rejectedFiles;
+
     @ManyToOne
     @JoinColumn(name = "evaluator_id")
     private User evaluator;

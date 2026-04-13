@@ -134,4 +134,165 @@ public class GovernanceController {
             return ResponseEntity.status(500).body(Map.of("error", "Failed to fetch criteria"));
         }
     }
+
+    // ===================== ADMIN CRUD =====================
+
+    // ---------- Principles ----------
+
+    @PostMapping("/principles")
+    public ResponseEntity<?> createPrinciple(@RequestBody Map<String, Object> body) {
+        try {
+            Principle p = new Principle();
+            p.setName((String) body.get("name"));
+            p.setDescription((String) body.getOrDefault("description", ""));
+            p.setOrderIndex(body.get("orderIndex") != null ? ((Number) body.get("orderIndex")).intValue() : 0);
+            p.setIsActive(true);
+            principleRepository.save(p);
+            return ResponseEntity.ok(Map.of("principleId", p.getPrincipleId(), "message", "Principle created"));
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(500).body(Map.of("error", "Failed to create principle", "details", e.getMessage()));
+        }
+    }
+
+    @PutMapping("/principles/{id}")
+    public ResponseEntity<?> updatePrinciple(@PathVariable Long id, @RequestBody Map<String, Object> body) {
+        try {
+            Principle p = principleRepository.findById(id)
+                    .orElseThrow(() -> new RuntimeException("Principle not found"));
+            if (body.containsKey("name")) p.setName((String) body.get("name"));
+            if (body.containsKey("description")) p.setDescription((String) body.get("description"));
+            if (body.containsKey("orderIndex")) p.setOrderIndex(((Number) body.get("orderIndex")).intValue());
+            principleRepository.save(p);
+            return ResponseEntity.ok(Map.of("message", "Principle updated"));
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(500).body(Map.of("error", "Failed to update principle"));
+        }
+    }
+
+    @DeleteMapping("/principles/{id}")
+    public ResponseEntity<?> deletePrinciple(@PathVariable Long id) {
+        try {
+            Principle p = principleRepository.findById(id)
+                    .orElseThrow(() -> new RuntimeException("Principle not found"));
+            p.setIsActive(false);
+            principleRepository.save(p);
+            return ResponseEntity.ok(Map.of("message", "Principle deactivated"));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", "Failed to delete principle"));
+        }
+    }
+
+    // ---------- Practices ----------
+
+    @PostMapping("/practices")
+    public ResponseEntity<?> createPractice(@RequestBody Map<String, Object> body) {
+        try {
+            Long principleId = ((Number) body.get("principleId")).longValue();
+            Principle principle = principleRepository.findById(principleId)
+                    .orElseThrow(() -> new RuntimeException("Principle not found"));
+            Practice pr = new Practice();
+            pr.setPrinciple(principle);
+            pr.setName((String) body.get("name"));
+            pr.setDescription((String) body.getOrDefault("description", ""));
+            pr.setOrderIndex(body.get("orderIndex") != null ? ((Number) body.get("orderIndex")).intValue() : 0);
+            pr.setIsActive(true);
+            practiceRepository.save(pr);
+            return ResponseEntity.ok(Map.of("practiceId", pr.getPracticeId(), "message", "Practice created"));
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(500).body(Map.of("error", "Failed to create practice", "details", e.getMessage()));
+        }
+    }
+
+    @PutMapping("/practices/{id}")
+    public ResponseEntity<?> updatePractice(@PathVariable Long id, @RequestBody Map<String, Object> body) {
+        try {
+            Practice pr = practiceRepository.findById(id)
+                    .orElseThrow(() -> new RuntimeException("Practice not found"));
+            if (body.containsKey("name")) pr.setName((String) body.get("name"));
+            if (body.containsKey("description")) pr.setDescription((String) body.get("description"));
+            if (body.containsKey("orderIndex")) pr.setOrderIndex(((Number) body.get("orderIndex")).intValue());
+            practiceRepository.save(pr);
+            return ResponseEntity.ok(Map.of("message", "Practice updated"));
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(500).body(Map.of("error", "Failed to update practice"));
+        }
+    }
+
+    @DeleteMapping("/practices/{id}")
+    public ResponseEntity<?> deletePractice(@PathVariable Long id) {
+        try {
+            Practice pr = practiceRepository.findById(id)
+                    .orElseThrow(() -> new RuntimeException("Practice not found"));
+            pr.setIsActive(false);
+            practiceRepository.save(pr);
+            return ResponseEntity.ok(Map.of("message", "Practice deactivated"));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", "Failed to delete practice"));
+        }
+    }
+
+    // ---------- Criteria ----------
+
+    @PostMapping("/criteria")
+    public ResponseEntity<?> createCriterion(@RequestBody Map<String, Object> body) {
+        try {
+            Long practiceId = ((Number) body.get("practiceId")).longValue();
+            Practice practice = practiceRepository.findById(practiceId)
+                    .orElseThrow(() -> new RuntimeException("Practice not found"));
+            Criterion c = new Criterion();
+            c.setPractice(practice);
+            c.setDescription((String) body.getOrDefault("description", ""));
+            c.setEvidenceText((String) body.getOrDefault("evidenceText", ""));
+            c.setReferenceText((String) body.getOrDefault("referenceText", ""));
+            c.setOrderIndex(body.get("orderIndex") != null ? ((Number) body.get("orderIndex")).intValue() : 0);
+            c.setLevel0Description((String) body.getOrDefault("level0Description", null));
+            c.setLevel1Description((String) body.getOrDefault("level1Description", null));
+            c.setLevel2Description((String) body.getOrDefault("level2Description", null));
+            c.setLevel3Description((String) body.getOrDefault("level3Description", null));
+            c.setIsActive(true);
+            criterionRepository.save(c);
+            return ResponseEntity.ok(Map.of("criterionId", c.getCriterionId(), "message", "Criterion created"));
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(500).body(Map.of("error", "Failed to create criterion", "details", e.getMessage()));
+        }
+    }
+
+    @PutMapping("/criteria/{id}")
+    public ResponseEntity<?> updateCriterion(@PathVariable Long id, @RequestBody Map<String, Object> body) {
+        try {
+            Criterion c = criterionRepository.findById(id)
+                    .orElseThrow(() -> new RuntimeException("Criterion not found"));
+            if (body.containsKey("description")) c.setDescription((String) body.get("description"));
+            if (body.containsKey("evidenceText")) c.setEvidenceText((String) body.get("evidenceText"));
+            if (body.containsKey("referenceText")) c.setReferenceText((String) body.get("referenceText"));
+            if (body.containsKey("orderIndex")) c.setOrderIndex(((Number) body.get("orderIndex")).intValue());
+            if (body.containsKey("level0Description")) c.setLevel0Description((String) body.get("level0Description"));
+            if (body.containsKey("level1Description")) c.setLevel1Description((String) body.get("level1Description"));
+            if (body.containsKey("level2Description")) c.setLevel2Description((String) body.get("level2Description"));
+            if (body.containsKey("level3Description")) c.setLevel3Description((String) body.get("level3Description"));
+            criterionRepository.save(c);
+            return ResponseEntity.ok(Map.of("message", "Criterion updated"));
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(500).body(Map.of("error", "Failed to update criterion"));
+        }
+    }
+
+    @DeleteMapping("/criteria/{id}")
+    public ResponseEntity<?> deleteCriterion(@PathVariable Long id) {
+        try {
+            Criterion c = criterionRepository.findById(id)
+                    .orElseThrow(() -> new RuntimeException("Criterion not found"));
+            c.setIsActive(false);
+            criterionRepository.save(c);
+            return ResponseEntity.ok(Map.of("message", "Criterion deactivated"));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", "Failed to delete criterion"));
+        }
+    }
 }

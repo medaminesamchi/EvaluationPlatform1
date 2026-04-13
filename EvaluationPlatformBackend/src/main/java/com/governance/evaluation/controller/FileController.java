@@ -31,6 +31,13 @@ public class FileController {
     private final EvaluationRepository evaluationRepository;
     private final UserRepository userRepository;
 
+    private com.governance.evaluation.entity.Organization getUserOrganization(User user) {
+        if (user instanceof com.governance.evaluation.entity.OrganizationAdmin orgAdmin) {
+            return orgAdmin.getOrganization();
+        }
+        return null;
+    }
+
     /**
      * Upload evidence file
      * POST /api/files/upload
@@ -50,7 +57,8 @@ public class FileController {
                     .orElseThrow(() -> new RuntimeException("Evaluation not found"));
 
             // Check authorization
-            if (!evaluation.getOrganization().getUserId().equals(currentUser.getUserId())) {
+            com.governance.evaluation.entity.Organization org = getUserOrganization(currentUser);
+            if (org == null || !evaluation.getOrganization().getOrganizationId().equals(org.getOrganizationId())) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
                         .body(Map.of("error", "Not authorized to upload files for this evaluation"));
             }
@@ -107,7 +115,8 @@ public class FileController {
 
             // ✅ SECURITY: Only owner, evaluators, and admins can download
             String userRole = currentUser.getRole().toString();
-            boolean isOwner = evaluation.getOrganization().getUserId().equals(currentUser.getUserId());
+            com.governance.evaluation.entity.Organization org = getUserOrganization(currentUser);
+            boolean isOwner = org != null && evaluation.getOrganization().getOrganizationId().equals(org.getOrganizationId());
             boolean isEvaluator = "EVALUATOR".equals(userRole);
             boolean isAdmin = "ADMIN".equals(userRole);
 

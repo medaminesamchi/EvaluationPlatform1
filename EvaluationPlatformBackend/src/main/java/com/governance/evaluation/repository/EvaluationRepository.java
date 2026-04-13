@@ -11,11 +11,11 @@ import java.util.List;
 public interface EvaluationRepository extends JpaRepository<Evaluation, Long> {
     
     // Find evaluations by organization ID
-    List<Evaluation> findByOrganization_UserId(Long userId);
+    List<Evaluation> findByOrganization_OrganizationId(Long organizationId);
     
     // Find evaluations by status
     List<Evaluation> findByStatus(EvaluationStatus status);
     
     // Find evaluations by organization and status
-    List<Evaluation> findByOrganization_UserIdAndStatus(Long userId, EvaluationStatus status);
+    List<Evaluation> findByOrganization_OrganizationIdAndStatus(Long organizationId, EvaluationStatus status);
 }

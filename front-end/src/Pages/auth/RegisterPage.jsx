@@ -25,6 +25,12 @@ const RegisterPage = () => {
     department: '',
     roleLevel: '',
     domainOfExpertise: '',
+    organizationName: '',
+    organizationEmail: '',
+    faxNumber: '',
+    employeeCount: '',
+    position: '',
+    grade: '',
   });
 
   const handleChange = (e) => {
@@ -51,9 +57,15 @@ const RegisterPage = () => {
       };
 
       if (formData.role === 'ORGANIZATION') {
+        payload.organizationName = formData.organizationName;
+        payload.organizationEmail = formData.organizationEmail;
         payload.sector = formData.sector;
         payload.address = formData.address;
         payload.phone = formData.phone;
+        payload.faxNumber = formData.faxNumber;
+        payload.employeeCount = formData.employeeCount;
+        payload.position = formData.position;
+        payload.grade = formData.grade;
         payload.dateOfFoundation = formData.dateOfFoundation || null;
       } else if (formData.role === 'EVALUATOR') {
         payload.department = formData.department;
@@ -134,7 +146,25 @@ const RegisterPage = () => {
 
           {formData.role === 'ORGANIZATION' && (
             <>
+              <div style={styles.sectionDivider}>Admin Profile Details</div>
+              <div style={styles.formGroup}>
+                <label style={styles.label}>Admin Position</label>
+                <input type="text" name="position" style={styles.input} value={formData.position} onChange={handleChange} placeholder="e.g. Director, Manager" required />
+              </div>
+              <div style={styles.formGroup}>
+                <label style={styles.label}>Admin Grade</label>
+                <input type="text" name="grade" style={styles.input} value={formData.grade} onChange={handleChange} placeholder="e.g. Senior" required />
+              </div>
+
               <div style={styles.sectionDivider}>Organization Details</div>
+              <div style={styles.formGroup}>
+                <label style={styles.label}>Organization Name *</label>
+                <input type="text" name="organizationName" style={styles.input} value={formData.organizationName} onChange={handleChange} placeholder="Official name" required />
+              </div>
+              <div style={styles.formGroup}>
+                <label style={styles.label}>Organization Email *</label>
+                <input type="email" name="organizationEmail" style={styles.input} value={formData.organizationEmail} onChange={handleChange} placeholder="Contact email for the organization" required />
+              </div>
               <div style={styles.formGroup}>
                 <label style={styles.label}>Sector</label>
                 <select name="sector" style={styles.select} value={formData.sector} onChange={handleChange}>
@@ -154,6 +184,14 @@ const RegisterPage = () => {
               <div style={styles.formGroup}>
                 <label style={styles.label}>Phone Number</label>
                 <input type="tel" name="phone" style={styles.input} value={formData.phone} onChange={handleChange} placeholder="+216 XX XXX XXX" />
+              </div>
+              <div style={styles.formGroup}>
+                <label style={styles.label}>Fax Number</label>
+                <input type="tel" name="faxNumber" style={styles.input} value={formData.faxNumber} onChange={handleChange} placeholder="Fax number" />
+              </div>
+              <div style={styles.formGroup}>
+                <label style={styles.label}>Number of Employees</label>
+                <input type="number" name="employeeCount" style={styles.input} value={formData.employeeCount} onChange={handleChange} placeholder="e.g. 150" />
               </div>
               <div style={styles.formGroup}>
                 <label style={styles.label}>Date of Foundation</label>

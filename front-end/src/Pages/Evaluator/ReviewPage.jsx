@@ -6,7 +6,23 @@ import governanceService from '../../Services/governanceService';
 import { GOVERNANCE_PRINCIPLES, MATURITY_LEVEL_OPTIONS } from '../../utils/constants';
 import { normalizeGovernanceFramework } from '../../utils/governanceFramework';
 
-const SecureEvidenceViewer = ({ evaluationId, filename, styles }) => {
+const REJECTION_REASONS = [
+  "Document not signed / not officially approved",
+  "Document is outdated or not the current version",
+  "Document is a draft or template, not implemented",
+  "Scope is incomplete (doesn't cover all required elements)",
+  "No proof of actual application or enforcement",
+  "No proof of communication or dissemination",
+  "Roles and responsibilities not clearly assigned",
+  "No monitoring report or follow-up evidence",
+  "Reference text provided instead of internal document",
+  "Periodic review not documented",
+  "Only partially addresses the criterion",
+  "Not issued by the appropriate governance body",
+  "Other"
+];
+
+const SecureEvidenceViewer = ({ evaluationId, filename, styles, onReject, isRejected, rejectionData }) => {
   const [url, setUrl] = useState(null);
   const [error, setError] = useState(false);
 
@@ -107,6 +123,11 @@ const ReviewPage = () => {
         const map = {};
         data.criterionReviews.forEach(r => {
           const key = `${r.principleId}-${r.practiceId}-${r.criterionId}`;
+          if (r.rejectedFiles && typeof r.rejectedFiles === 'string') {
+            try { r.rejectedFiles = JSON.parse(r.rejectedFiles); } catch(e) { r.rejectedFiles = []; }
+          } else if (!r.rejectedFiles) {
+            r.rejectedFiles = [];
+          }
           map[key] = r;
         });
         setCriterionReviews(map);
@@ -148,11 +169,45 @@ const ReviewPage = () => {
     }));
   };
 
+  const updateFileStatus = (principleId, practiceId, criterionId, filename, status, reason = '', comment = '') => {
+    const key = `${principleId}-${practiceId}-${criterionId}`;
+    setCriterionReviews(prev => {
+      const current = prev[key] || { principleId, practiceId, criterionId, rejectedFiles: [] };
+      let updatedFiles = [...(current.rejectedFiles || [])];
+      
+      const existingIndex = updatedFiles.findIndex(f => f.filename === filename);
+      if (existingIndex >= 0) {
+        updatedFiles[existingIndex] = { ...updatedFiles[existingIndex], status, reason: status === 'rejected' ? reason : undefined, comment: status === 'rejected' ? comment : undefined };
+      } else {
+        updatedFiles.push({ filename, status, reason: status === 'rejected' ? reason : undefined, comment: status === 'rejected' ? comment : undefined });
+      }
+      
+      return {
+        ...prev,
+        [key]: {
+          ...current,
+          rejectedFiles: updatedFiles
+        }
+      };
+    });
+  };
+
   const buildCriterionReviewsArray = () => {
-    return Object.values(criterionReviews).filter(r =>
-      r.adjustedMaturityLevel !== undefined ||
-      r.proofRequested === true
-    );
+    return Object.values(criterionReviews)
+      .map(r => {
+        const hasRejectedFile = r.rejectedFiles?.some(f => f.status === 'rejected');
+        const hasComment = r.proofRequestComment && r.proofRequestComment.trim() !== '';
+        // Automatically flag as needing proof if there are rejected files or comments
+        if (hasRejectedFile || hasComment) {
+          return { ...r, proofRequested: true };
+        }
+        return r;
+      })
+      .filter(r =>
+        r.adjustedMaturityLevel !== undefined ||
+        r.proofRequested === true ||
+        (r.rejectedFiles && r.rejectedFiles.length > 0)
+      );
   };
 
   const handleApprove = async () => {
@@ -282,40 +337,60 @@ const ReviewPage = () => {
       color: 'white',
     }),
     layout: {
-      maxWidth: '1200px',
+      maxWidth: '1300px',
       margin: '0 auto',
       padding: '20px 24px',
       display: 'flex',
       gap: '20px',
+      paddingBottom: '100px',
     },
-    main: { flex: 1 },
-    actionPanel: {
-      width: '320px',
+    sidebar: {
+      width: '280px',
       flexShrink: 0,
       position: 'sticky',
-      top: '65px',
+      top: '85px',
       height: 'fit-content',
-    },
-    actionCard: {
       background: 'white',
       borderRadius: '12px',
-      padding: '20px',
+      padding: '16px',
       boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
-      marginBottom: '12px',
+      maxHeight: 'calc(100vh - 120px)',
+      overflowY: 'auto'
     },
-    actionCardTitle: { fontSize: '14px', fontWeight: '700', color: '#111827', marginBottom: '12px' },
-    actionCardBtn: (color, outline) => ({
-      width: '100%',
-      padding: '10px',
-      background: outline ? 'white' : color,
-      border: `2px solid ${color}`,
-      borderRadius: '8px',
-      cursor: 'pointer',
+    sidebarItem: (active) => ({
       fontSize: '13px',
+      padding: '8px 12px',
+      borderRadius: '6px',
+      cursor: 'pointer',
+      background: active ? '#f3f4f6' : 'white',
+      color: '#111827',
       fontWeight: '600',
-      color: outline ? color : 'white',
-      marginBottom: '8px',
+      marginBottom: '4px'
     }),
+    sidebarSub: {
+      fontSize: '12px',
+      color: '#6b7280',
+      paddingLeft: '24px',
+      paddingTop: '4px',
+      paddingBottom: '4px',
+      cursor: 'pointer'
+    },
+    stickyFooter: {
+      position: 'fixed',
+      bottom: 0, 
+      left: 0, 
+      right: 0,
+      background: 'white',
+      borderTop: '1px solid #e5e7eb',
+      padding: '16px 24px',
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      boxShadow: '0 -4px 6px -1px rgba(0, 0, 0, 0.1)',
+      zIndex: 100
+    },
+    main: { flex: 1 },
+    actionPanel: { display: 'none' },
     textarea: {
       width: '100%',
       padding: '10px',
@@ -412,7 +487,6 @@ const ReviewPage = () => {
   if (loading || fwLoading) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', flexDirection: 'column', gap: '16px' }}>
-        <div style={{ fontSize: '48px' }}>⏳</div>
         <p>Loading evaluation...</p>
       </div>
     );
@@ -430,19 +504,41 @@ const ReviewPage = () => {
           </div>
         </div>
         <div style={styles.topRight}>
-          <button style={styles.actionBtn('#dc2626')} onClick={() => setActiveAction('reject')}>
-            ❌ Reject
-          </button>
-          <button style={styles.actionBtn('#f59e0b')} onClick={() => setActiveAction('request-proof')}>
-            📋 Request Proof
-          </button>
-          <button style={styles.actionBtn('#059669')} onClick={() => setActiveAction('approve')}>
-            ✅ Approve
-          </button>
+          {/* Note: the main action buttons have been moved to the sticky footer */}
         </div>
       </div>
 
       <div style={styles.layout}>
+        {/* Sidebar Navigation */}
+        <div style={styles.sidebar}>
+          <div style={{ fontSize: '14px', fontWeight: '700', marginBottom: '16px', color: '#111827' }}>Framework Navigation</div>
+          {GOVERNANCE.map(principle => (
+            <div key={`side-${principle.id}`} style={{ marginBottom: '8px' }}>
+              <div
+                style={styles.sidebarItem(false)}
+                onClick={() => {
+                  const el = document.getElementById(`principle-${principle.id}`);
+                  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }}
+              >
+                {principle.name}
+              </div>
+              {expandedPrinciples.includes(principle.id) && principle.practices.map(practice => (
+                <div
+                  key={`side-pr-${practice.id}`}
+                  style={styles.sidebarSub}
+                  onClick={() => {
+                    const el = document.getElementById(`practice-${principle.id}-${practice.id}`);
+                    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  }}
+                >
+                  └ {practice.name}
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+
         {/* Main Content */}
         <div style={styles.main}>
           {GOVERNANCE.map(principle => {
@@ -450,7 +546,7 @@ const ReviewPage = () => {
             const responses = evaluation?.responses?.filter(r => r.principleId == principle.id) || [];
 
             return (
-              <div key={principle.id} style={styles.principleCard}>
+              <div id={`principle-${principle.id}`} key={principle.id} style={styles.principleCard}>
                 <div
                   style={styles.principleHeader}
                   onClick={() => setExpandedPrinciples(prev =>
@@ -474,7 +570,7 @@ const ReviewPage = () => {
                 </div>
 
                 {isExpanded && principle.practices.map(practice =>
-                  practice.criteria.map(criterion => {
+                  practice.criteria.map((criterion, idx) => {
                     const response = getResponse(principle.id, practice.id, criterion.id);
                     const review = getReview(principle.id, practice.id, criterion.id);
                     const orgLevel = response?.maturityLevel;
@@ -483,16 +579,16 @@ const ReviewPage = () => {
                       ? maturityColors[orgLevel] : '#9ca3af';
 
                     return (
-                      <div key={`${principle.id}-${practice.id}-${criterion.id}`} style={styles.criterionRow}>
+                      <div id={idx === 0 ? `practice-${principle.id}-${practice.id}` : undefined} key={`${principle.id}-${practice.id}-${criterion.id}`} style={styles.criterionRow}>
                         <div style={styles.criterionText}>{criterion.text}</div>
                         {criterion.evidence && (
                           <div style={{ fontSize: '11px', color: '#6b7280', marginBottom: '4px' }}>
-                            📎 Preuves attendues : {criterion.evidence}
+                            Expected Proof: {criterion.evidence}
                           </div>
                         )}
                         {criterion.reference && (
                           <div style={{ fontSize: '11px', color: '#4b5563', marginBottom: '6px' }}>
-                            📚 Références : {criterion.reference}
+                            References: {criterion.reference}
                           </div>
                         )}
                         <div style={{ fontSize: '11px', color: '#9ca3af', marginBottom: '8px' }}>
@@ -519,15 +615,15 @@ const ReviewPage = () => {
                                   color: maturityColors[adjLevel],
                                   border: `1px solid ${maturityColors[adjLevel]}40`,
                                 }}>
-                                  ✏️ Adjusted to Level {adjLevel}
+                                  Adjusted to Level {adjLevel}
                                 </span>
                               )}
                             </div>
 
-                            {/* Evidence/Comments from org */}
-                            {(response.evidenceFile || response.evidence || response.comments) && (
+                            {/* View evidence */}
+                            {((response.evidenceFiles && response.evidenceFiles.length > 0) || response.evidence || response.comments) && (
                               <div style={styles.evidenceSection}>
-                                <div style={styles.evidenceTitle}>📎 Submitted Evidence</div>
+                                <div style={styles.evidenceTitle}>Submitted Evidence</div>
 
                                 {response.comments && (
                                   <div style={{ fontSize: '13px', color: '#374151', marginBottom: '8px' }}>
@@ -535,35 +631,65 @@ const ReviewPage = () => {
                                   </div>
                                 )}
 
-                                {response.evidenceFile && (
-                                  <SecureEvidenceViewer 
-                                    evaluationId={evaluation.evaluationId} 
-                                    filename={response.evidenceFile} 
-                                    styles={styles} 
-                                  />
+                                {response.evidenceFiles && response.evidenceFiles.length > 0 && (
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                                    {response.evidenceFiles.map((fname, fidx) => {
+                                      const splitName = fname.split(' - ')[1] || fname;
+                                      return (
+                                        <div key={fidx} style={{ 
+                                          border: '1px solid #e5e7eb', 
+                                          padding: '10px', 
+                                          borderRadius: '8px',
+                                          background: '#ffffff' 
+                                        }}>
+                                          <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px', fontWeight: '600' }}>
+                                            File {fidx + 1} of {response.evidenceFiles.length}: <span style={{ color: '#111827' }}>{splitName}</span>
+                                          </div>
+                                          <SecureEvidenceViewer
+                                            evaluationId={evaluation.evaluationId}
+                                            filename={fname}
+                                            styles={{...styles, evidenceBtn: {...styles.evidenceBtn, margin: 0}}}
+                                          />
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
                                 )}
                               </div>
                             )}
 
                             {/* Score Adjustment Section */}
                             <div style={styles.adjustSection}>
-                              <div style={styles.adjustTitle}>✏️ Adjust Score (optional)</div>
+                              <div style={styles.adjustTitle}>Adjust Score (optional)</div>
+                              <div style={{ fontSize: '11px', color: '#6b7280', marginBottom: '10px' }}>
+                                You cannot adjust to Level 0, or to the same level the organization selected. The organization will be notified of your adjustment reason.
+                              </div>
                               <div style={styles.maturityBtns}>
-                                {[0, 1, 2, 3].map(lvl => (
-                                  <button
-                                    key={lvl}
-                                    style={styles.maturityBtn(adjLevel === lvl, maturityColors[lvl])}
-                                    onClick={() => {
-                                      if (adjLevel === lvl) {
-                                        updateReview(principle.id, practice.id, criterion.id, 'adjustedMaturityLevel', undefined);
-                                      } else {
-                                        updateReview(principle.id, practice.id, criterion.id, 'adjustedMaturityLevel', lvl);
-                                      }
-                                    }}
-                                  >
-                                    {lvl}
-                                  </button>
-                                ))}
+                                {[1, 2, 3].map(lvl => {
+                                  const disabled = orgLevel === lvl;
+                                  const selected = adjLevel === lvl;
+                                  return (
+                                    <button
+                                      key={lvl}
+                                      style={{
+                                        ...styles.maturityBtn(selected, maturityColors[lvl]),
+                                        opacity: disabled ? 0.4 : 1,
+                                        cursor: disabled ? 'not-allowed' : 'pointer'
+                                      }}
+                                      disabled={disabled}
+                                      title={disabled ? "Organization already selected this level" : `Adjust to level ${lvl}`}
+                                      onClick={() => {
+                                        if (selected) {
+                                          updateReview(principle.id, practice.id, criterion.id, 'adjustedMaturityLevel', undefined);
+                                        } else {
+                                          updateReview(principle.id, practice.id, criterion.id, 'adjustedMaturityLevel', lvl);
+                                        }
+                                      }}
+                                    >
+                                      {lvl}
+                                    </button>
+                                  );
+                                })}
                                 {adjLevel !== undefined && (
                                   <button
                                     style={{ padding: '6px 10px', border: '1px solid #e5e7eb', borderRadius: '6px', background: 'white', cursor: 'pointer', fontSize: '12px', color: '#6b7280' }}
@@ -583,30 +709,77 @@ const ReviewPage = () => {
                               )}
                             </div>
 
-                            {/* Request Proof Section */}
-                            <div style={styles.proofSection}>
-                              <div style={styles.checkboxRow}>
-                                <input
-                                  type="checkbox"
-                                  id={`proof-${principle.id}-${practice.id}-${criterion.id}`}
-                                  checked={review.proofRequested === true}
-                                  onChange={e => updateReview(principle.id, practice.id, criterion.id, 'proofRequested', e.target.checked)}
-                                />
-                                <label
-                                  htmlFor={`proof-${principle.id}-${practice.id}-${criterion.id}`}
-                                  style={{ fontSize: '12px', fontWeight: '600', color: '#dc2626', cursor: 'pointer' }}
-                                >
-                                  🔴 Request additional proof for this criterion
-                                </label>
-                              </div>
-                              {review.proofRequested && (
-                                <textarea
-                                  style={styles.textarea}
-                                  placeholder="Describe what proof is needed..."
-                                  value={review.proofRequestComment || ''}
-                                  onChange={e => updateReview(principle.id, practice.id, criterion.id, 'proofRequestComment', e.target.value)}
-                                />
+                            {/* Request Proof / Validate Section */}
+                            <div style={{...styles.proofSection, marginTop: '20px'}}>
+                              {response.evidenceFiles && response.evidenceFiles.length > 0 && (
+                                <div style={{ marginBottom: '16px' }}>
+                                  <div style={{ fontSize: '12px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>
+                                    Validate Uploaded Evidence:
+                                  </div>
+                                  {response.evidenceFiles.map((fname, fidx) => {
+                                    const fileStatusData = review.rejectedFiles?.find(f => f.filename === fname);
+                                    const status = fileStatusData?.status;
+                                    const splitName = fname.split(' - ')[1] || fname;
+                                    
+                                    return (
+                                      <div key={fidx} style={{ padding: '10px', border: '1px solid #d1d5db', borderRadius: '8px', marginBottom: '8px', background: 'white' }}>
+                                        <div style={{ fontSize: '12px', wordBreak: 'break-all', marginBottom: '8px', color: '#374151', fontWeight: '500' }}>{splitName}</div>
+                                        <div style={{ display: 'flex', gap: '20px' }}>
+                                          <label style={{ cursor: 'pointer', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <input 
+                                              type="radio" 
+                                              checked={status === 'valid'} 
+                                              onChange={() => updateFileStatus(principle.id, practice.id, criterion.id, fname, 'valid')} 
+                                            /> 
+                                            <span style={{ color: '#059669', fontWeight: '600' }}>Valid</span>
+                                          </label>
+                                          <label style={{ cursor: 'pointer', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <input 
+                                              type="radio" 
+                                              checked={status === 'rejected'} 
+                                              onChange={() => updateFileStatus(principle.id, practice.id, criterion.id, fname, 'rejected')} 
+                                            /> 
+                                            <span style={{ color: '#dc2626', fontWeight: '600' }}>Rejected</span>
+                                          </label>
+                                        </div>
+                                        
+                                        {status === 'rejected' && (
+                                          <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px dashed #fca5a5' }}>
+                                            <select
+                                              style={{ ...styles.textarea, minHeight: 'auto', marginBottom: '8px', padding: '6px', fontSize: '12px' }}
+                                              value={fileStatusData?.reason || ''}
+                                              onChange={e => updateFileStatus(principle.id, practice.id, criterion.id, fname, 'rejected', e.target.value, fileStatusData?.comment)}
+                                            >
+                                              <option value="" disabled>Select a reason...</option>
+                                              {REJECTION_REASONS.map((r, i) => <option key={i} value={r}>{r}</option>)}
+                                            </select>
+                                            
+                                            {(fileStatusData?.reason === 'Other' || fileStatusData?.reason) && (
+                                              <input
+                                                type="text"
+                                                placeholder="Additional comment (optional)"
+                                                style={{ ...styles.textarea, minHeight: 'auto', padding: '6px', fontSize: '12px' }}
+                                                value={fileStatusData?.comment || ''}
+                                                onChange={e => updateFileStatus(principle.id, practice.id, criterion.id, fname, 'rejected', fileStatusData?.reason, e.target.value)}
+                                              />
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
                               )}
+                              
+                              <div style={{ fontSize: '12px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>
+                                Ask for additional file(s) or explanation (Optional):
+                              </div>
+                              <textarea
+                                style={styles.textarea}
+                                placeholder="Describe what missing proof is needed..."
+                                value={review.proofRequestComment || ''}
+                                onChange={e => updateReview(principle.id, practice.id, criterion.id, 'proofRequestComment', e.target.value)}
+                              />
                             </div>
                           </>
                         ) : (
@@ -621,58 +794,56 @@ const ReviewPage = () => {
           })}
         </div>
 
-        {/* Action Panel */}
-        <div style={styles.actionPanel}>
-          {/* Approve */}
-          <div style={styles.actionCard}>
-            <div style={styles.actionCardTitle}>✅ Approve Evaluation</div>
-            <p style={{ fontSize: '12px', color: '#6b7280', marginBottom: '12px' }}>
-              Approve this evaluation. Any score adjustments you made above will be applied.
-            </p>
-            <button
-              style={styles.actionCardBtn('#059669')}
-              onClick={handleApprove}
-              disabled={submitting}
-            >
-              {submitting ? '⏳' : '✅'} Approve
-            </button>
-          </div>
+        {/* Action Panel was removed, replaced with Sticky Footer below */}
+      </div>
 
-          {/* Request Proof */}
-          <div style={styles.actionCard}>
-            <div style={styles.actionCardTitle}>📋 Request Additional Proof</div>
-            <p style={{ fontSize: '12px', color: '#6b7280', marginBottom: '12px' }}>
-              Flag specific criteria above that need more evidence. The organization will only be able to update those criteria.
-            </p>
-            <div style={{ fontSize: '12px', fontWeight: '600', color: '#d97706', marginBottom: '8px' }}>
-              {Object.values(criterionReviews).filter(r => r.proofRequested).length} criteria flagged
-            </div>
-            <button
-              style={styles.actionCardBtn('#f59e0b')}
-              onClick={handleRequestProof}
-              disabled={submitting}
-            >
-              {submitting ? '⏳' : '📋'} Send Request
-            </button>
+      {/* Sticky Action Footer */}
+      <div style={styles.stickyFooter}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+          <div style={{ fontSize: '13px', fontWeight: '600', color: '#374151' }}>
+            <span style={{ color: '#d97706', fontWeight: '700' }}>{Object.values(criterionReviews).filter(r => r.proofRequested).length}</span> criteria flagged for proof
           </div>
-
-          {/* Reject */}
-          <div style={styles.actionCard}>
-            <div style={styles.actionCardTitle}>❌ Reject Evaluation</div>
-            <textarea
-              style={styles.textarea}
-              placeholder="Reason for rejection (required)..."
+          <div style={{ fontSize: '13px', fontWeight: '600', color: '#374151' }}>
+            <span style={{ color: '#059669', fontWeight: '700' }}>{Object.values(criterionReviews).filter(r => r.adjustedMaturityLevel !== undefined).length}</span> criteria adjusted
+          </div>
+        </div>
+        
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          {/* General Reject */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <input
+              type="text"
+              style={{ padding: '8px', border: '1px solid #e5e7eb', borderRadius: '6px', fontSize: '12px', width: '200px' }}
+              placeholder="Global rejection reason..."
               value={globalReason}
               onChange={e => setGlobalReason(e.target.value)}
             />
             <button
-              style={styles.actionCardBtn('#dc2626')}
+              style={{ ...styles.actionBtn('#dc2626'), padding: '8px 16px' }}
               onClick={handleReject}
               disabled={submitting}
             >
-              {submitting ? '⏳' : '❌'} Reject
+              {submitting ? '...' : 'Reject All'}
             </button>
           </div>
+
+          <div style={{ width: '1px', background: '#d1d5db', height: '24px' }} />
+
+          <button
+            style={styles.actionBtn('#f59e0b')}
+            onClick={handleRequestProof}
+            disabled={submitting || Object.values(criterionReviews).filter(r => r.proofRequested).length === 0}
+          >
+            {submitting ? '...' : 'Request Proof'}
+          </button>
+          
+          <button
+            style={styles.actionBtn('#059669')}
+            onClick={handleApprove}
+            disabled={submitting}
+          >
+            {submitting ? '...' : 'Approve Evaluation'}
+          </button>
         </div>
       </div>
     </div>

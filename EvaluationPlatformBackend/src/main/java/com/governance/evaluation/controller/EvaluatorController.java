@@ -14,6 +14,7 @@ import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
+import org.springframework.transaction.annotation.Transactional;
 
 @RestController
 @RequestMapping("/api/evaluator")
@@ -66,7 +67,9 @@ public class EvaluatorController {
                 return e2.getSubmittedAt().compareTo(e1.getSubmittedAt());
             });
 
-            List<Map<String, Object>> response = queue.stream().map(eval -> {
+            List<Map<String, Object>> response = queue.stream()
+                .filter(eval -> eval.getOrganization() != null) // Skip orphaned evaluations
+                .map(eval -> {
                 Map<String, Object> map = new HashMap<>();
                 map.put("evaluationId", eval.getEvaluationId());
                 map.put("name", eval.getName());
@@ -76,7 +79,7 @@ public class EvaluatorController {
                 map.put("createdAt", eval.getCreatedAt());
                 map.put("submittedAt", eval.getSubmittedAt());
                 Map<String, Object> org = new HashMap<>();
-                org.put("userId", eval.getOrganization().getUserId());
+                org.put("organizationId", eval.getOrganization().getOrganizationId());
                 org.put("name", eval.getOrganization().getName());
                 org.put("email", eval.getOrganization().getEmail());
                 map.put("organization", org);
@@ -135,7 +138,8 @@ public class EvaluatorController {
                 dto.put("maturityLevel", r.getMaturityLevel());
                 dto.put("comments", r.getComments());
                 dto.put("evidence", r.getEvidence());
-                dto.put("evidenceFile", r.getEvidenceFile());
+                dto.put("evidenceFiles", r.getEvidenceFiles() != null && !r.getEvidenceFiles().isEmpty()
+                        ? Arrays.asList(r.getEvidenceFiles().split(",")) : List.of());
                 return dto;
             }).collect(Collectors.toList());
             result.put("responses", responseDTOs);
@@ -151,6 +155,7 @@ public class EvaluatorController {
                 dto.put("adjustmentReason", r.getAdjustmentReason());
                 dto.put("proofRequested", r.getProofRequested());
                 dto.put("proofRequestComment", r.getProofRequestComment());
+                dto.put("rejectedFiles", r.getRejectedFiles());
                 return dto;
             }).collect(Collectors.toList());
             result.put("criterionReviews", reviewDTOs);
@@ -211,6 +216,7 @@ public class EvaluatorController {
     // Approve with optional per-criterion score adjustments
     // ============================================================
     @PostMapping("/evaluations/{id}/approve")
+    @Transactional
     public ResponseEntity<?> approveEvaluation(
             @PathVariable Long id,
             @RequestBody(required = false) Map<String, Object> request) {
@@ -355,6 +361,22 @@ public class EvaluatorController {
             if (r.get("proofRequestComment") != null) {
                 review.setProofRequestComment((String) r.get("proofRequestComment"));
             }
+            if (r.get("rejectedFiles") != null) {
+                // frontend sends JSON string or object, we store as JSON string
+                Object rf = r.get("rejectedFiles");
+                if (rf instanceof String) {
+                    review.setRejectedFiles((String) rf);
+                } else {
+                    try {
+                        com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                        review.setRejectedFiles(mapper.writeValueAsString(rf));
+                    } catch (Exception e) {
+                        review.setRejectedFiles("[]");
+                    }
+                }
+            } else {
+                review.setRejectedFiles(null);
+            }
 
             criterionReviewRepository.save(review);
         }
@@ -380,7 +402,10 @@ public class EvaluatorController {
     private void generateEvaluationResult(Evaluation evaluation) {
         Optional<EvaluationResult> existing = resultRepository
                 .findByEvaluation_EvaluationId(evaluation.getEvaluationId());
-        if (existing.isPresent()) resultRepository.delete(existing.get());
+        if (existing.isPresent()) {
+            resultRepository.delete(existing.get());
+            resultRepository.flush();
+        }
 
         List<EvaluationResponse> responses = responseRepository
                 .findByEvaluation_EvaluationId(evaluation.getEvaluationId());
@@ -411,6 +436,7 @@ public class EvaluatorController {
         EvaluationResult result = new EvaluationResult();
         result.setEvaluation(evaluation);
         result.setTotalScore(score);
+        result.setFinalScore(score);
         result.setIssuedDate(LocalDateTime.now());
         result.setExpiryDate(LocalDateTime.now().plusYears(1));
         result.setCreatedAt(LocalDateTime.now());

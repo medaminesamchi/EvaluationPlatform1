@@ -56,7 +56,13 @@ public class AdminController {
                 return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", "Email already exists"));
             User user;
             switch (role.toUpperCase()) {
-                case "ORGANIZATION": user = new Organization(); break;
+                case "ORGANIZATION":
+                    OrganizationAdmin orgAdmin = new OrganizationAdmin();
+                    Organization org = new Organization();
+                    org.setName(name != null ? name : "Unnamed Organization");
+                    orgAdmin.setOrganization(org);
+                    user = orgAdmin;
+                    break;
                 case "EVALUATOR":    user = new Evaluator();    break;
                 case "ADMIN":        user = new Administrator(); break;
                 default: return ResponseEntity.badRequest().body(Map.of("error", "Invalid role"));
@@ -97,8 +103,8 @@ public class AdminController {
         try {
             User user = userRepository.findById(id)
                     .orElseThrow(() -> new RuntimeException("User not found"));
-            if (user.getRole().equals(UserRole.ORGANIZATION)) {
-                List<Evaluation> evaluations = evaluationRepository.findByOrganization_UserId(id);
+            if (user.getRole().equals(UserRole.ORGANIZATION) && user instanceof OrganizationAdmin orgAdmin && orgAdmin.getOrganization() != null) {
+                List<Evaluation> evaluations = evaluationRepository.findByOrganization_OrganizationId(orgAdmin.getOrganization().getOrganizationId());
                 if (!evaluations.isEmpty()) {
                     return ResponseEntity.status(HttpStatus.CONFLICT)
                             .body(Map.of("error", "Cannot delete user with existing evaluations"));
@@ -141,7 +147,7 @@ public class AdminController {
                 dto.put("totalScore", eval.getTotalScore());
                 dto.put("createdAt", eval.getCreatedAt());
                 if (eval.getOrganization() != null) {
-                    dto.put("organizationId", eval.getOrganization().getUserId());
+                    dto.put("organizationId", eval.getOrganization().getOrganizationId());
                     dto.put("organizationName", eval.getOrganization().getName());
                 }
                 return dto;
@@ -157,7 +163,7 @@ public class AdminController {
     public ResponseEntity<?> getDashboardStats() {
         try {
             long totalUsers = userRepository.count();
-            long totalOrganizations = userRepository.findAll().stream().filter(u -> u instanceof Organization).count();
+            long totalOrganizations = userRepository.countByRole(UserRole.ORGANIZATION);
             long totalEvaluations = evaluationRepository.count();
             Map<String, Object> stats = new HashMap<>();
             stats.put("totalUsers", totalUsers);

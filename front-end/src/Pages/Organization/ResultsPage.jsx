@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from 'recharts';
 import evaluationService from '../../Services/evaluationService';
 import governanceService from '../../Services/governanceService';
 import { normalizeGovernanceFramework } from '../../utils/governanceFramework';
@@ -42,11 +43,13 @@ const ResultsPage = () => {
 
       for (const evaluation of approvedEvaluations) {
         try {
-          // Fetch overall result
-          const result = await evaluationService.getEvaluationResult(evaluation.evaluationId);
-          resultsData[evaluation.evaluationId] = result;
+          try {
+            const result = await evaluationService.getEvaluationResult(evaluation.evaluationId);
+            resultsData[evaluation.evaluationId] = result;
+          } catch (e) {
+            console.log('Result not yet generated for evaluation:', evaluation.evaluationId);
+          }
 
-          // Fetch responses and reviews to calculate detailed principle scores
           const responses = await evaluationService.getResponses(evaluation.evaluationId);
           const reviews = await evaluationService.getCriterionReviews(evaluation.evaluationId);
 
@@ -57,7 +60,7 @@ const ResultsPage = () => {
             }
           });
 
-          const principleScores = {};
+          const principleScores = [];
           
           framework.forEach(principle => {
             let sum = 0;
@@ -79,11 +82,13 @@ const ResultsPage = () => {
             if (criteriaCount > 0) {
               const maxPoints = criteriaCount * 3;
               const percentage = (sum / maxPoints) * 100;
-              principleScores[principle.id] = {
-                name: principle.name,
-                color: principle.color,
-                score: percentage,
-              };
+              principleScores.push({
+                subject: principle.name,
+                A: Math.round(percentage),
+                fullMark: 100,
+                color: principle.color || '#3b82f6',
+                id: principle.id
+              });
             }
           });
 
@@ -97,192 +102,167 @@ const ResultsPage = () => {
       setResults(resultsData);
       setDetailedScores(scoresData);
     } catch (error) {
-      console.error('❌ Error loading results:', error);
+      console.error('Error loading results:', error);
     } finally {
       setLoading(false);
     }
   };
 
   const getCertificationLevel = (score) => {
-    if (score >= 90) return { name: t('results.platinum'), color: '#a78bfa' };
-    if (score >= 80) return { name: t('results.gold'), color: '#fbbf24' };
-    if (score >= 65) return { name: t('results.silver'), color: '#9ca3af' };
-    if (score >= 50) return { name: t('results.bronze'), color: '#cd7f32' };
-    return { name: t('results.notCertified'), color: '#6b7280' };
+    if (score >= 90) return { name: 'Platinum', color: '#a78bfa' };
+    if (score >= 80) return { name: 'Gold', color: '#f59e0b' };
+    if (score >= 65) return { name: 'Silver', color: '#9ca3af' };
+    if (score >= 50) return { name: 'Bronze', color: '#d97706' };
+    return { name: 'Not Certified', color: '#6b7280' };
   };
 
-  const styles = {
-    container: { padding: '32px', maxWidth: '1200px', margin: '0 auto' },
+  const s = {
+    page: { padding: '32px', maxWidth: '1200px', margin: '0 auto', fontFamily: 'Inter, sans-serif' },
     header: { marginBottom: '32px' },
-    title: { fontSize: '32px', fontWeight: '800', color: '#0f172a', marginBottom: '8px', letterSpacing: '-0.02em' },
+    title: { fontSize: '32px', fontWeight: '800', color: '#0f172a', letterSpacing: '-0.02em', marginBottom: '8px' },
     subtitle: { fontSize: '16px', color: '#64748b' },
-    card: {
-      background: 'white', borderRadius: '20px', padding: '32px',
-      boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01)',
-      marginBottom: '24px', transition: 'all 0.3s'
-    },
-    topSection: { display: 'flex', flexWrap: 'wrap', gap: '32px', alignItems: 'center' },
-    scoreCircle: (certColor) => ({
-      width: '140px', height: '140px', borderRadius: '50%',
-      background: `linear-gradient(135deg, ${certColor}15 0%, ${certColor}25 100%)`,
-      border: `4px solid ${certColor}`, color: certColor,
-      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-      boxShadow: `0 0 20px ${certColor}20`
+    card: { background: 'white', borderRadius: '16px', padding: '32px', boxShadow: '0 4px 20px rgba(0,0,0,0.04)', marginBottom: '24px', border: '1px solid #f1f5f9' },
+    topSection: { display: 'flex', gap: '32px', flexWrap: 'wrap', alignItems: 'center' },
+    scoreRing: (color) => ({
+      width: '160px', height: '160px', borderRadius: '50%', background: `radial-gradient(circle, white 50%, ${color}15 100%)`,
+      border: `6px solid ${color}`, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', boxShadow: `0 8px 30px ${color}20`
     }),
-    evalDetails: { flex: 1, minWidth: '280px' },
-    badgeDateBox: { background: '#f8fafc', padding: '16px', borderRadius: '12px', marginTop: '16px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' },
-    infoText: { fontSize: '13px', color: '#64748b', fontWeight: '600', textTransform: 'uppercase', marginBottom: '4px' },
-    infoValue: { fontSize: '15px', color: '#0f172a', fontWeight: '700' },
-    toggleBtn: { width: '100%', padding: '16px', background: '#f1f5f9', border: 'none', borderRadius: '12px', marginTop: '24px', color: '#334155', fontSize: '14px', fontWeight: '700', cursor: 'pointer', transition: 'background 0.2s' },
-    actionBtn: { padding: '12px 24px', background: 'linear-gradient(135deg, #2563eb 0%, #4f46e5 100%)', color: 'white', border: 'none', borderRadius: '10px', fontSize: '14px', fontWeight: '700', cursor: 'pointer', marginTop: '16px', transition: 'opacity 0.2s', width: '100%' },
-    
-    // Details Section
-    detailsSection: { marginTop: '24px', borderTop: '1px solid #e2e8f0', paddingTop: '24px' },
-    principleRow: { marginBottom: '16px' },
-    principleHeader: { display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '14px', fontWeight: '600', color: '#334155' },
-    progressBarTrack: { height: '8px', background: '#e2e8f0', borderRadius: '4px', overflow: 'hidden' },
-    
-    emptyState: { textAlign: 'center', padding: '80px', background: 'white', borderRadius: '20px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)' },
+    evalDetails: { flex: 1, minWidth: '300px' },
+    evalName: { fontSize: '28px', fontWeight: '800', color: '#0f172a', marginBottom: '4px' },
+    evalPeriod: { fontSize: '16px', color: '#64748b', fontWeight: '500', marginBottom: '20px' },
+    metaGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px', background: '#f8fafc', padding: '20px', borderRadius: '12px' },
+    metaLabel: { fontSize: '12px', fontWeight: '700', textTransform: 'uppercase', color: '#94a3b8', letterSpacing: '0.05em', marginBottom: '6px' },
+    metaValue: { fontSize: '16px', fontWeight: '700', color: '#0f172a' },
+    toggleBtn: { width: '100%', padding: '16px', marginTop: '24px', border: 'none', background: '#f1f5f9', borderRadius: '12px', color: '#334155', fontWeight: '700', cursor: 'pointer', transition: 'background 0.2s' },
+    detailsContainer: { marginTop: '24px', paddingTop: '24px', borderTop: '1px solid #e2e8f0' },
+    chartsRow: { display: 'flex', gap: '24px', flexWrap: 'wrap', marginTop: '24px' },
+    chartBox: { flex: '1 1 400px', background: '#f8fafc', padding: '24px', borderRadius: '16px', minHeight: '350px' },
+    chartTitle: { fontSize: '16px', fontWeight: '700', color: '#0f172a', marginBottom: '20px', textAlign: 'center' }
   };
 
   if (loading) {
-    return (
-      <div style={styles.container}>
-        <div style={{ textAlign: 'center', padding: '80px', color: '#64748b' }}>
-          <div style={{ fontSize: '48px', marginBottom: '16px' }}>⏳</div>
-          <div>Loading detailed results...</div>
-        </div>
-      </div>
-    );
+    return <div style={{ padding: '80px', textAlign: 'center', color: '#64748b' }}>Loading results...</div>;
   }
 
   if (evaluations.length === 0) {
     return (
-      <div style={styles.container}>
-        <div style={styles.header}>
-          <h1 style={styles.title}>{t('results.results')}</h1>
-          <p style={styles.subtitle}>{t('results.evaluationResults')}</p>
-        </div>
-        <div style={styles.emptyState}>
-          <div style={{ fontSize: '64px', marginBottom: '16px' }}>🏆</div>
-          <h3 style={{ fontSize: '20px', fontWeight: '800', color: '#0f172a', marginBottom: '12px' }}>
-            {t('results.noResults')}
-          </h3>
-          <p style={{ color: '#64748b', marginBottom: '32px' }}>
-            Complete and submit an evaluation to see your detailed results here.
-          </p>
-          <button style={{ ...styles.actionBtn, width: 'auto' }} onClick={() => navigate('/organization/evaluations/new')}>
-            {t('evaluation.createEvaluation')}
-          </button>
+      <div style={s.page}>
+        <div style={s.header}>
+          <h1 style={s.title}>Evaluation Results</h1>
+          <p style={s.subtitle}>You don't have any finalized evaluation results yet.</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div style={styles.container}>
-      <div style={styles.header}>
-        <h1 style={styles.title}>{t('results.results')}</h1>
-        <p style={styles.subtitle}>View your finalized scores, certificates, and detailed principle breakdowns.</p>
+    <div style={s.page}>
+      <div style={s.header}>
+        <h1 style={s.title}>Evaluation Results</h1>
+        <p style={s.subtitle}>Detailed breakdowns of your certified governance framework scores.</p>
       </div>
 
-      <div>
-        {evaluations.map(evaluation => {
-          const result = results[evaluation.evaluationId];
-          const cert = getCertificationLevel(evaluation.totalScore || 0);
-          const pScores = detailedScores[evaluation.evaluationId] || {};
-          const isExpanded = expandedEvalId === evaluation.evaluationId;
+      {evaluations.map(evaluation => {
+        const result = results[evaluation.evaluationId];
+        const pScores = detailedScores[evaluation.evaluationId] || [];
+        const isExp = expandedEvalId === evaluation.evaluationId;
+        const cert = getCertificationLevel(result?.finalScore || evaluation.totalScore || 0);
 
-          return (
-            <div key={evaluation.evaluationId} style={styles.card}>
-              <div style={styles.topSection}>
-                {/* Visual Score */}
-                <div style={styles.scoreCircle(cert.color)}>
-                  <div style={{ fontSize: '42px', fontWeight: '800', lineHeight: '1' }}>{Math.round(evaluation.totalScore || 0)}%</div>
-                  <div style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', marginTop: '6px', opacity: 0.8 }}>Final Score</div>
+        return (
+          <div key={evaluation.evaluationId} style={s.card}>
+            <div style={s.topSection}>
+              <div style={s.scoreRing(cert.color)}>
+                <div style={{ fontSize: '46px', fontWeight: '900', color: cert.color, lineHeight: 1 }}>
+                  {Math.round(result?.finalScore || evaluation.totalScore || 0)}<span style={{ fontSize: '24px' }}>%</span>
                 </div>
-
-                {/* Details */}
-                <div style={styles.evalDetails}>
-                  <div style={{ fontSize: '24px', fontWeight: '800', color: '#0f172a', marginBottom: '4px' }}>{evaluation.name}</div>
-                  <div style={{ fontSize: '15px', color: '#64748b', fontWeight: '500' }}>{evaluation.period}</div>
-                  
-                  <div style={styles.badgeDateBox}>
-                    <div>
-                      <div style={styles.infoText}>Certification Level</div>
-                      <div style={{ ...styles.infoValue, color: cert.color, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        🏆 {cert.name}
-                      </div>
-                    </div>
-                    {result ? (
-                      <div>
-                        <div style={styles.infoText}>Valid Until</div>
-                        <div style={styles.infoValue}>📅 {new Date(result.expiryDate).toLocaleDateString()}</div>
-                      </div>
-                    ) : (
-                      <div>
-                        <div style={styles.infoText}>Status</div>
-                        <div style={styles.infoValue}>Approved, Result pending...</div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Recommendations Button */}
-                <div style={{ minWidth: '200px' }}>
-                  <button 
-                    style={styles.actionBtn}
-                    onClick={() => navigate(`/organization/recommendations/${evaluation.evaluationId}`)}
-                    onMouseEnter={e => e.target.style.opacity = 0.9}
-                    onMouseLeave={e => e.target.style.opacity = 1}
-                  >
-                    View Recommendations →
-                  </button>
-                </div>
+                <div style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', color: '#64748b', marginTop: '4px' }}>Final Score</div>
               </div>
 
-              {/* Expand Toggle */}
-              <button 
-                style={styles.toggleBtn}
-                onClick={() => setExpandedEvalId(isExpanded ? null : evaluation.evaluationId)}
-                onMouseEnter={e => e.target.style.background = '#e2e8f0'}
-                onMouseLeave={e => e.target.style.background = '#f1f5f9'}
-              >
-                {isExpanded ? 'Hide Detailed Breakdown ▲' : 'Show Principle Score Breakdown ▼'}
-              </button>
+              <div style={s.evalDetails}>
+                <div style={s.evalName}>{evaluation.name}</div>
+                <div style={s.evalPeriod}>{evaluation.period}</div>
 
-              {/* Detailed Breakdown Section */}
-              {isExpanded && (
-                <div style={styles.detailsSection}>
-                  <div style={{ fontSize: '20px', fontWeight: '800', color: '#0f172a', marginBottom: '24px' }}>Performance by Principle</div>
-                  
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '24px' }}>
-                    {Object.values(pScores).map((ps, idx) => (
-                      <div key={idx} style={styles.principleRow}>
-                        <div style={styles.principleHeader}>
-                          <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: ps.color || '#3b82f6' }} />
-                            {ps.name}
-                          </span>
-                          <span style={{ fontWeight: '800' }}>{Math.round(ps.score)}%</span>
-                        </div>
-                        <div style={styles.progressBarTrack}>
-                          <div style={{ 
-                            height: '100%', 
-                            width: `${ps.score}%`, 
-                            background: ps.color || '#3b82f6',
-                            transition: 'width 1s cubic-bezier(0.4, 0, 0.2, 1)' 
-                          }} />
-                        </div>
+                <div style={s.metaGrid}>
+                  <div>
+                    <div style={s.metaLabel}>Certification</div>
+                    <div style={{...s.metaValue, color: cert.color}}>Level: {cert.name}</div>
+                  </div>
+                  {result ? (
+                    <>
+                      <div>
+                        <div style={s.metaLabel}>Date Issued</div>
+                        <div style={s.metaValue}>{new Date(result.issuedDate).toLocaleDateString()}</div>
                       </div>
-                    ))}
+                      <div>
+                        <div style={s.metaLabel}>Valid Until</div>
+                        <div style={s.metaValue}>{new Date(result.expiryDate).toLocaleDateString()}</div>
+                      </div>
+                    </>
+                  ) : (
+                     <div style={{ gridColumn: 'span 2' }}>
+                        <div style={s.metaLabel}>Status</div>
+                        <div style={{...s.metaValue, color: '#f59e0b'}}>Result generation pending...</div>
+                     </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <button 
+              style={s.toggleBtn}
+              onClick={() => setExpandedEvalId(isExp ? null : evaluation.evaluationId)}
+            >
+              {isExp ? 'Hide Advanced Analytics' : 'View Advanced Analytics'}
+            </button>
+
+            {isExp && pScores.length > 0 && (
+              <div style={s.detailsContainer}>
+                <h3 style={{ fontSize: '20px', fontWeight: '800', color: '#0f172a' }}>Performance Analysis</h3>
+                
+                <div style={s.chartsRow}>
+                  {/* Radar Chart */}
+                  <div style={s.chartBox}>
+                    <div style={s.chartTitle}>Principle Balance (Radar)</div>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <RadarChart cx="50%" cy="50%" outerRadius="80%" data={pScores}>
+                        <PolarGrid stroke="#e2e8f0" />
+                        <PolarAngleAxis dataKey="subject" tick={{ fill: '#475569', fontSize: 11, fontWeight: 600 }} />
+                        <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
+                        <Radar name="Score" dataKey="A" stroke={cert.color} fill={cert.color} fillOpacity={0.4} />
+                        <Tooltip 
+                          formatter={(value) => [`${value}%`, 'Score']}
+                          contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                        />
+                      </RadarChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  {/* Bar Chart */}
+                  <div style={s.chartBox}>
+                    <div style={s.chartTitle}>Score by Principle</div>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <BarChart data={pScores} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                        <XAxis type="number" domain={[0, 100]} hide />
+                        <YAxis dataKey="subject" type="category" width={150} tick={{ fill: '#475569', fontSize: 12, fontWeight: 600 }} axisLine={false} tickLine={false} />
+                        <Tooltip 
+                          cursor={{fill: '#f1f5f9'}}
+                          formatter={(value) => [`${value}%`, 'Score']}
+                          contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                        />
+                        <Bar dataKey="A" radius={[0, 6, 6, 0]} barSize={24}>
+                          {pScores.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
                   </div>
                 </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 };

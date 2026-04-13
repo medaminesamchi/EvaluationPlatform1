@@ -31,6 +31,13 @@ public class EvaluationController {
     private final EvaluationResultRepository resultRepository;
     private final RecommendationRepository recommendationRepository;
 
+    private Organization getUserOrganization(User user) {
+        if (user instanceof OrganizationAdmin orgAdmin) {
+            return orgAdmin.getOrganization();
+        }
+        return null;
+    }
+
     /**
      * Get my evaluations
      * GET /api/evaluations/my
@@ -42,7 +49,13 @@ public class EvaluationController {
             User currentUser = userRepository.findByEmail(currentUserEmail)
                     .orElseThrow(() -> new RuntimeException("User not found"));
 
-            List<Evaluation> evaluations = evaluationRepository.findByOrganization_UserId(currentUser.getUserId());
+            Organization org = getUserOrganization(currentUser);
+            if (org == null) {
+                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(Map.of("error", "User does not belong to an organization"));
+            }
+
+            List<Evaluation> evaluations = evaluationRepository.findByOrganization_OrganizationId(org.getOrganizationId());
 
             System.out.println("📋 Found " + evaluations.size() + " evaluations for user: " + currentUser.getEmail());
 
@@ -72,7 +85,7 @@ public class EvaluationController {
 
             // ✅ CRITICAL: Use .toString() for comparison
             String userRole = currentUser.getRole().toString();
-            boolean isOwner = evaluation.getOrganization().getUserId().equals(currentUser.getUserId());
+            boolean isOwner = getUserOrganization(currentUser) != null && evaluation.getOrganization().getOrganizationId().equals(getUserOrganization(currentUser).getOrganizationId());
             boolean isEvaluator = "EVALUATOR".equals(userRole);
             boolean isAdmin = "ADMIN".equals(userRole);
 
@@ -117,7 +130,7 @@ public class EvaluationController {
 
             // ✅ CRITICAL: Use .toString() for comparison
             String userRole = currentUser.getRole().toString();
-            boolean isOwner = evaluation.getOrganization().getUserId().equals(currentUser.getUserId());
+            boolean isOwner = getUserOrganization(currentUser) != null && evaluation.getOrganization().getOrganizationId().equals(getUserOrganization(currentUser).getOrganizationId());
             boolean isEvaluator = "EVALUATOR".equals(userRole);
             boolean isAdmin = "ADMIN".equals(userRole);
 
@@ -159,12 +172,18 @@ public class EvaluationController {
             User currentUser = userRepository.findByEmail(currentUserEmail)
                     .orElseThrow(() -> new RuntimeException("User not found"));
 
+            Organization org = getUserOrganization(currentUser);
+            if (org == null) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(Map.of("error", "Only organizations can create evaluations"));
+            }
+
             // ✅ ENFORCE ONE EVALUATION PER YEAR PER ORGANIZATION (annual assessment)
             String year = String.valueOf(LocalDateTime.now().getYear());
             String period = "Annual " + year;
             String name = "Annual Governance Evaluation " + year;
 
-            List<Evaluation> existing = evaluationRepository.findByOrganization_UserId(currentUser.getUserId());
+            List<Evaluation> existing = evaluationRepository.findByOrganization_OrganizationId(org.getOrganizationId());
             boolean alreadyExists = existing.stream().anyMatch(e -> {
                 if (e.getPeriod() == null) return false;
                 return e.getPeriod().contains(year);
@@ -180,7 +199,7 @@ public class EvaluationController {
             evaluation.setName(name);
             evaluation.setPeriod(period);
             evaluation.setDescription(request.get("description"));
-            evaluation.setOrganization(currentUser);
+            evaluation.setOrganization(org);
             evaluation.setStatus(EvaluationStatus.CREATED);
             evaluation.setTotalScore(0.0);
             evaluation.setCreatedAt(LocalDateTime.now());
@@ -211,7 +230,8 @@ public class EvaluationController {
             User currentUser = userRepository.findByEmail(currentUserEmail)
                     .orElseThrow(() -> new RuntimeException("User not found"));
 
-            if (!evaluation.getOrganization().getUserId().equals(currentUser.getUserId())) {
+            Organization org = getUserOrganization(currentUser);
+            if (org == null || !evaluation.getOrganization().getOrganizationId().equals(org.getOrganizationId())) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
                         .body(Map.of("error", "Not authorized to update this evaluation"));
             }
@@ -249,7 +269,8 @@ public class EvaluationController {
             User currentUser = userRepository.findByEmail(currentUserEmail)
                     .orElseThrow(() -> new RuntimeException("User not found"));
 
-            if (!evaluation.getOrganization().getUserId().equals(currentUser.getUserId())) {
+            Organization org = getUserOrganization(currentUser);
+            if (org == null || !evaluation.getOrganization().getOrganizationId().equals(org.getOrganizationId())) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
                         .body(Map.of("error", "Not authorized to save responses for this evaluation"));
             }
@@ -265,7 +286,15 @@ public class EvaluationController {
                 response.setMaturityLevel((Integer) responseData.get("maturityLevel"));
                 response.setEvidence((String) responseData.get("evidence"));
                 response.setComments((String) responseData.get("comments"));
-                response.setEvidenceFile((String) responseData.get("evidenceFile")); // ✅ NEW
+                // Handle evidenceFiles: frontend sends a comma-separated string or a JSON array
+                Object filesObj = responseData.get("evidenceFiles");
+                if (filesObj instanceof List) {
+                    @SuppressWarnings("unchecked")
+                    List<String> filesList = (List<String>) filesObj;
+                    response.setEvidenceFiles(String.join(",", filesList));
+                } else if (filesObj instanceof String) {
+                    response.setEvidenceFiles((String) filesObj);
+                }
                 response.setCreatedAt(LocalDateTime.now());
 
                 responseRepository.save(response);
@@ -303,7 +332,8 @@ public class EvaluationController {
             User currentUser = userRepository.findByEmail(currentUserEmail)
                     .orElseThrow(() -> new RuntimeException("User not found"));
 
-            if (!evaluation.getOrganization().getUserId().equals(currentUser.getUserId())) {
+            Organization org = getUserOrganization(currentUser);
+            if (org == null || !evaluation.getOrganization().getOrganizationId().equals(org.getOrganizationId())) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
                         .body(Map.of("error", "Not authorized to submit this evaluation"));
             }
@@ -356,7 +386,8 @@ public class EvaluationController {
             User currentUser = userRepository.findByEmail(currentUserEmail)
                     .orElseThrow(() -> new RuntimeException("User not found"));
 
-            if (!evaluation.getOrganization().getUserId().equals(currentUser.getUserId())) {
+            Organization org = getUserOrganization(currentUser);
+            if (org == null || !evaluation.getOrganization().getOrganizationId().equals(org.getOrganizationId())) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
                         .body(Map.of("error", "Not authorized to delete this evaluation"));
             }
@@ -385,7 +416,8 @@ public class EvaluationController {
                     .orElseThrow(() -> new RuntimeException("Evaluation not found"));
 
             // Only org owner, evaluator, or admin can see reviews
-            boolean isOwner = evaluation.getOrganization().getUserId().equals(currentUser.getUserId());
+            Organization org = getUserOrganization(currentUser);
+            boolean isOwner = org != null && evaluation.getOrganization().getOrganizationId().equals(org.getOrganizationId());
             String role = currentUser.getRole().toString();
             if (!isOwner && !"EVALUATOR".equals(role) && !"ADMIN".equals(role)) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", "Access denied"));
@@ -403,6 +435,7 @@ public class EvaluationController {
                 dto.put("proofRequestComment", r.getProofRequestComment());
                 dto.put("adjustedMaturityLevel", r.getAdjustedMaturityLevel());
                 dto.put("adjustmentReason", r.getAdjustmentReason());
+                dto.put("rejectedFiles", r.getRejectedFiles());
                 return dto;
             }).collect(Collectors.toList());
 
@@ -429,7 +462,8 @@ public class EvaluationController {
                     .orElseThrow(() -> new RuntimeException("Evaluation not found"));
 
             String userRole = currentUser.getRole().toString();
-            boolean isOwner = evaluation.getOrganization().getUserId().equals(currentUser.getUserId());
+            Organization org = getUserOrganization(currentUser);
+            boolean isOwner = org != null && evaluation.getOrganization().getOrganizationId().equals(org.getOrganizationId());
             boolean isEvaluator = "EVALUATOR".equals(userRole);
             boolean isAdmin = "ADMIN".equals(userRole);
 
@@ -479,7 +513,8 @@ public class EvaluationController {
                     .orElseThrow(() -> new RuntimeException("Evaluation not found"));
 
             String userRole = currentUser.getRole().toString();
-            boolean isOwner = evaluation.getOrganization().getUserId().equals(currentUser.getUserId());
+            Organization org = getUserOrganization(currentUser);
+            boolean isOwner = org != null && evaluation.getOrganization().getOrganizationId().equals(org.getOrganizationId());
             boolean isEvaluator = "EVALUATOR".equals(userRole);
             boolean isAdmin = "ADMIN".equals(userRole);
 

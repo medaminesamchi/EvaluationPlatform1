@@ -1,45 +1,65 @@
 import API from './api';
 
 const governanceService = {
-  /**
-   * Get complete governance framework (Principles → Practices → Criteria)
-   * GET /api/governance/framework
-   */
+  // ---- READ ----
   getFramework: async () => {
-    console.log('📡 Fetching governance framework');
     const response = await API.get('/governance/framework');
     return response.data;
   },
-
-  /**
-   * Get all principles
-   * GET /api/governance/principles
-   */
   getPrinciples: async () => {
-    console.log('📡 Fetching principles');
     const response = await API.get('/governance/principles');
     return response.data;
   },
-
-  /**
-   * Get practices for a principle
-   * GET /api/governance/principles/{id}/practices
-   */
   getPracticesByPrinciple: async (principleId) => {
-    console.log('📡 Fetching practices for principle:', principleId);
     const response = await API.get(`/governance/principles/${principleId}/practices`);
     return response.data;
   },
-
-  /**
-   * Get criteria for a practice
-   * GET /api/governance/practices/{id}/criteria
-   */
   getCriteriaByPractice: async (practiceId) => {
-    console.log('📡 Fetching criteria for practice:', practiceId);
     const response = await API.get(`/governance/practices/${practiceId}/criteria`);
     return response.data;
-  }
+  },
+
+  // ---- PRINCIPLES CRUD ----
+  createPrinciple: async (data) => {
+    const response = await API.post('/governance/principles', data);
+    return response.data;
+  },
+  updatePrinciple: async (id, data) => {
+    const response = await API.put(`/governance/principles/${id}`, data);
+    return response.data;
+  },
+  deletePrinciple: async (id) => {
+    const response = await API.delete(`/governance/principles/${id}`);
+    return response.data;
+  },
+
+  // ---- PRACTICES CRUD ----
+  createPractice: async (data) => {
+    const response = await API.post('/governance/practices', data);
+    return response.data;
+  },
+  updatePractice: async (id, data) => {
+    const response = await API.put(`/governance/practices/${id}`, data);
+    return response.data;
+  },
+  deletePractice: async (id) => {
+    const response = await API.delete(`/governance/practices/${id}`);
+    return response.data;
+  },
+
+  // ---- CRITERIA CRUD ----
+  createCriterion: async (data) => {
+    const response = await API.post('/governance/criteria', data);
+    return response.data;
+  },
+  updateCriterion: async (id, data) => {
+    const response = await API.put(`/governance/criteria/${id}`, data);
+    return response.data;
+  },
+  deleteCriterion: async (id) => {
+    const response = await API.delete(`/governance/criteria/${id}`);
+    return response.data;
+  },
 };
 
 export default governanceService;

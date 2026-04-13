@@ -23,6 +23,10 @@ const OrganizationProfilePage = () => {
     description: '',
     size: '',
     website: '',
+    faxNumber: '',
+    employeeCount: '',
+    position: '',
+    grade: '',
   });
 
   useEffect(() => {
@@ -44,6 +48,10 @@ const OrganizationProfilePage = () => {
         description: data.description || '',
         size: data.size || '',
         website: data.website || '',
+        faxNumber: data.faxNumber || '',
+        employeeCount: data.employeeCount || '',
+        position: data.position || '',
+        grade: data.grade || '',
       });
       // If no sector yet — it's a new profile
       if (!data.sector) setIsNewProfile(true);
@@ -149,24 +157,33 @@ const OrganizationProfilePage = () => {
         {success && <div style={styles.success}>✅ {success}</div>}
 
         <form onSubmit={handleSubmit}>
-          {/* Basic Info */}
+          {/* Admin Info */}
           <div style={styles.card}>
-            <div style={styles.sectionTitle}>Basic Information</div>
+            <div style={styles.sectionTitle}>Admin Profile Details</div>
             <div style={styles.grid}>
               <div style={styles.formGroup}>
-                <label style={styles.label}>Organization Name <span style={styles.required}>*</span></label>
-                <input type="text" name="name" style={styles.input} value={profile.name} onChange={handleChange}
-                  placeholder="Enter organization name" required
-                  onFocus={e => e.target.style.borderColor = '#2563eb'}
-                  onBlur={e => e.target.style.borderColor = '#d1d5db'} />
+                <label style={styles.label}>Admin Full Name <span style={styles.required}>*</span></label>
+                <input type="text" name="name" style={styles.input} value={profile.name} onChange={handleChange} required />
               </div>
-
               <div style={styles.formGroup}>
-                <label style={styles.label}>Email</label>
-                <input type="email" name="email" style={{ ...styles.input, background: '#f9fafb', color: '#6b7280' }}
-                  value={profile.email} disabled />
+                <label style={styles.label}>Admin Email</label>
+                <input type="email" name="email" style={{ ...styles.input, background: '#f9fafb', color: '#6b7280' }} value={profile.email} disabled />
               </div>
+              <div style={styles.formGroup}>
+                <label style={styles.label}>Admin Position</label>
+                <input type="text" name="position" style={styles.input} value={profile.position} onChange={handleChange} placeholder="e.g. Director" />
+              </div>
+              <div style={styles.formGroup}>
+                <label style={styles.label}>Admin Grade</label>
+                <input type="text" name="grade" style={styles.input} value={profile.grade} onChange={handleChange} placeholder="e.g. Senior" />
+              </div>
+            </div>
+          </div>
 
+          {/* Basic Info */}
+          <div style={styles.card}>
+            <div style={styles.sectionTitle}>Organization Information</div>
+            <div style={styles.grid}>
               <div style={styles.formGroup}>
                 <label style={styles.label}>Sector <span style={styles.required}>*</span></label>
                 <select name="sector" style={styles.select} value={profile.sector} onChange={handleChange} required>
@@ -180,6 +197,11 @@ const OrganizationProfilePage = () => {
                 </select>
               </div>
 
+              <div style={styles.formGroup}>
+                <label style={styles.label}>Number of Employees</label>
+                <input type="number" name="employeeCount" style={styles.input} value={profile.employeeCount} onChange={handleChange} placeholder="e.g. 150" />
+              </div>
+              
               <div style={styles.formGroup}>
                 <label style={styles.label}>Organization Size</label>
                 <select name="size" style={styles.select} value={profile.size} onChange={handleChange}>
@@ -234,9 +256,12 @@ const OrganizationProfilePage = () => {
                 <label style={styles.label}>Phone Number</label>
                 <input type="tel" name="phone" style={styles.input}
                   value={profile.phone} onChange={handleChange}
-                  placeholder="+216 XX XXX XXX"
-                  onFocus={e => e.target.style.borderColor = '#2563eb'}
-                  onBlur={e => e.target.style.borderColor = '#d1d5db'} />
+                  placeholder="+216 XX XXX XXX" />
+              </div>
+              
+              <div style={styles.formGroup}>
+                <label style={styles.label}>Fax Number</label>
+                <input type="tel" name="faxNumber" style={styles.input} value={profile.faxNumber} onChange={handleChange} placeholder="Fax number" />
               </div>
             </div>
           </div>

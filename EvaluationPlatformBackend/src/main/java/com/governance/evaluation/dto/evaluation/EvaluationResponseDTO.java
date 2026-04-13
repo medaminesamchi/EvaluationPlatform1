@@ -11,5 +11,5 @@ public class EvaluationResponseDTO {
     private Integer maturityLevel;
     private String evidence;
     private String comments;
-    private String evidenceFile;
+    private String evidenceFiles;
 }

@@ -32,7 +32,6 @@ public class OrganizationService {
         
         Organization organization = new Organization();
         organization.setEmail(email);
-        organization.setPassword(passwordEncoder.encode(password));
         organization.setName(name);
         organization.setIsActive(true);
         
@@ -49,10 +48,10 @@ public class OrganizationService {
         organizationRepository.save(organization);
         
         Map<String, Object> response = new HashMap<>();
-        response.put("userId", organization.getUserId());
+        response.put("organizationId", organization.getOrganizationId());
         response.put("email", organization.getEmail());
         response.put("name", organization.getName());
-        response.put("role", organization.getRole());
+        response.put("role", "ORGANIZATION");
         
         return response;
     }
@@ -63,10 +62,10 @@ public class OrganizationService {
                 .orElseThrow(() -> new RuntimeException("Organization not found"));
         
         Map<String, Object> response = new HashMap<>();
-        response.put("userId", org.getUserId());
+        response.put("organizationId", org.getOrganizationId());
         response.put("email", org.getEmail());
         response.put("name", org.getName());
-        response.put("role", org.getRole());
+        response.put("role", "ORGANIZATION");
         response.put("sector", org.getSector());
         response.put("address", org.getAddress());
         response.put("phone", org.getPhone());
@@ -80,10 +79,10 @@ public class OrganizationService {
         return organizationRepository.findAll().stream()
                 .map(org -> {
                     Map<String, Object> dto = new HashMap<>();
-                    dto.put("userId", org.getUserId());
+                    dto.put("organizationId", org.getOrganizationId());
                     dto.put("email", org.getEmail());
                     dto.put("name", org.getName());
-                    dto.put("role", org.getRole());
+                    dto.put("role", "ORGANIZATION");
                     dto.put("sector", org.getSector());
                     dto.put("address", org.getAddress());
                     dto.put("phone", org.getPhone());
@@ -114,10 +113,10 @@ public class OrganizationService {
         organizationRepository.save(org);
         
         Map<String, Object> response = new HashMap<>();
-        response.put("userId", org.getUserId());
+        response.put("organizationId", org.getOrganizationId());
         response.put("email", org.getEmail());
         response.put("name", org.getName());
-        response.put("role", org.getRole());
+        response.put("role", "ORGANIZATION");
         
         return response;
     }
