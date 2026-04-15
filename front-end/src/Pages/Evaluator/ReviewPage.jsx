@@ -709,77 +709,177 @@ const ReviewPage = () => {
                               )}
                             </div>
 
-                            {/* Request Proof / Validate Section */}
-                            <div style={{...styles.proofSection, marginTop: '20px'}}>
-                              {response.evidenceFiles && response.evidenceFiles.length > 0 && (
-                                <div style={{ marginBottom: '16px' }}>
-                                  <div style={{ fontSize: '12px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>
-                                    Validate Uploaded Evidence:
+                            {/* Flag Criterion for Proof Request */}
+                            <div style={{
+                              marginTop: '16px',
+                              border: review.proofRequested
+                                ? '2px solid #f59e0b'
+                                : '1px solid #e5e7eb',
+                              borderRadius: '10px',
+                              overflow: 'hidden',
+                              background: review.proofRequested ? '#fffbeb' : '#fafafa',
+                              transition: 'all 0.2s ease',
+                            }}>
+                              {/* Toggle Header */}
+                              <div
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  padding: '12px 16px',
+                                  cursor: 'pointer',
+                                  userSelect: 'none',
+                                  background: review.proofRequested
+                                    ? 'linear-gradient(135deg, #fef3c7, #fffbeb)'
+                                    : '#f9fafb',
+                                  borderBottom: review.proofRequested ? '1px solid #fde68a' : 'none',
+                                }}
+                                onClick={() => {
+                                  const newVal = !review.proofRequested;
+                                  updateReview(principle.id, practice.id, criterion.id, 'proofRequested', newVal);
+                                  if (!newVal) {
+                                    // Clear proof data when un-flagging
+                                    updateReview(principle.id, practice.id, criterion.id, 'proofRequestComment', '');
+                                  }
+                                }}
+                              >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                  <div style={{
+                                    width: '22px',
+                                    height: '22px',
+                                    borderRadius: '6px',
+                                    border: review.proofRequested
+                                      ? '2px solid #f59e0b'
+                                      : '2px solid #d1d5db',
+                                    background: review.proofRequested ? '#f59e0b' : 'white',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    fontSize: '14px',
+                                    color: 'white',
+                                    fontWeight: '700',
+                                    transition: 'all 0.15s ease',
+                                    flexShrink: 0,
+                                  }}>
+                                    {review.proofRequested ? '✓' : ''}
                                   </div>
-                                  {response.evidenceFiles.map((fname, fidx) => {
-                                    const fileStatusData = review.rejectedFiles?.find(f => f.filename === fname);
-                                    const status = fileStatusData?.status;
-                                    const splitName = fname.split(' - ')[1] || fname;
-                                    
-                                    return (
-                                      <div key={fidx} style={{ padding: '10px', border: '1px solid #d1d5db', borderRadius: '8px', marginBottom: '8px', background: 'white' }}>
-                                        <div style={{ fontSize: '12px', wordBreak: 'break-all', marginBottom: '8px', color: '#374151', fontWeight: '500' }}>{splitName}</div>
-                                        <div style={{ display: 'flex', gap: '20px' }}>
-                                          <label style={{ cursor: 'pointer', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                            <input 
-                                              type="radio" 
-                                              checked={status === 'valid'} 
-                                              onChange={() => updateFileStatus(principle.id, practice.id, criterion.id, fname, 'valid')} 
-                                            /> 
-                                            <span style={{ color: '#059669', fontWeight: '600' }}>Valid</span>
-                                          </label>
-                                          <label style={{ cursor: 'pointer', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                            <input 
-                                              type="radio" 
-                                              checked={status === 'rejected'} 
-                                              onChange={() => updateFileStatus(principle.id, practice.id, criterion.id, fname, 'rejected')} 
-                                            /> 
-                                            <span style={{ color: '#dc2626', fontWeight: '600' }}>Rejected</span>
-                                          </label>
-                                        </div>
-                                        
-                                        {status === 'rejected' && (
-                                          <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px dashed #fca5a5' }}>
-                                            <select
-                                              style={{ ...styles.textarea, minHeight: 'auto', marginBottom: '8px', padding: '6px', fontSize: '12px' }}
-                                              value={fileStatusData?.reason || ''}
-                                              onChange={e => updateFileStatus(principle.id, practice.id, criterion.id, fname, 'rejected', e.target.value, fileStatusData?.comment)}
-                                            >
-                                              <option value="" disabled>Select a reason...</option>
-                                              {REJECTION_REASONS.map((r, i) => <option key={i} value={r}>{r}</option>)}
-                                            </select>
-                                            
-                                            {(fileStatusData?.reason === 'Other' || fileStatusData?.reason) && (
-                                              <input
-                                                type="text"
-                                                placeholder="Additional comment (optional)"
-                                                style={{ ...styles.textarea, minHeight: 'auto', padding: '6px', fontSize: '12px' }}
-                                                value={fileStatusData?.comment || ''}
-                                                onChange={e => updateFileStatus(principle.id, practice.id, criterion.id, fname, 'rejected', fileStatusData?.reason, e.target.value)}
-                                              />
+                                  <div>
+                                    <div style={{
+                                      fontSize: '13px',
+                                      fontWeight: '700',
+                                      color: review.proofRequested ? '#92400e' : '#374151',
+                                    }}>
+                                      {review.proofRequested ? '⚠ Flagged — Proof Requested' : 'Flag this criterion for proof request'}
+                                    </div>
+                                    <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>
+                                      {review.proofRequested
+                                        ? 'Click to un-flag. Review files and add comments below.'
+                                        : 'Select if evidence is missing or insufficient for this criterion'}
+                                    </div>
+                                  </div>
+                                </div>
+                                <span style={{
+                                  fontSize: '18px',
+                                  color: review.proofRequested ? '#f59e0b' : '#9ca3af',
+                                  transition: 'transform 0.2s ease',
+                                  transform: review.proofRequested ? 'rotate(180deg)' : 'rotate(0deg)',
+                                }}>▼</span>
+                              </div>
+
+                              {/* Expanded Content: file validation + comment — only when flagged */}
+                              {review.proofRequested && (
+                                <div style={{ padding: '16px' }}>
+
+                                  {/* Validate individual files */}
+                                  {response.evidenceFiles && response.evidenceFiles.length > 0 && (
+                                    <div style={{ marginBottom: '16px' }}>
+                                      <div style={{ fontSize: '12px', fontWeight: '700', color: '#111827', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        📄 Validate Uploaded Evidence:
+                                      </div>
+                                      {response.evidenceFiles.map((fname, fidx) => {
+                                        const fileStatusData = review.rejectedFiles?.find(f => f.filename === fname);
+                                        const status = fileStatusData?.status;
+                                        const splitName = fname.split(' - ')[1] || fname;
+
+                                        return (
+                                          <div key={fidx} style={{
+                                            padding: '12px',
+                                            border: status === 'rejected'
+                                              ? '1px solid #fca5a5'
+                                              : status === 'valid'
+                                                ? '1px solid #86efac'
+                                                : '1px solid #d1d5db',
+                                            borderRadius: '8px',
+                                            marginBottom: '8px',
+                                            background: status === 'rejected'
+                                              ? '#fef2f2'
+                                              : status === 'valid'
+                                                ? '#f0fdf4'
+                                                : 'white',
+                                            transition: 'all 0.15s ease',
+                                          }}>
+                                            <div style={{ fontSize: '12px', wordBreak: 'break-all', marginBottom: '8px', color: '#374151', fontWeight: '500' }}>{splitName}</div>
+                                            <div style={{ display: 'flex', gap: '16px' }}>
+                                              <label style={{ cursor: 'pointer', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                <input
+                                                  type="radio"
+                                                  checked={status === 'valid'}
+                                                  onChange={() => updateFileStatus(principle.id, practice.id, criterion.id, fname, 'valid')}
+                                                />
+                                                <span style={{ color: '#059669', fontWeight: '600' }}>✓ Valid</span>
+                                              </label>
+                                              <label style={{ cursor: 'pointer', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                <input
+                                                  type="radio"
+                                                  checked={status === 'rejected'}
+                                                  onChange={() => updateFileStatus(principle.id, practice.id, criterion.id, fname, 'rejected')}
+                                                />
+                                                <span style={{ color: '#dc2626', fontWeight: '600' }}>✕ Rejected</span>
+                                              </label>
+                                            </div>
+
+                                            {status === 'rejected' && (
+                                              <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px dashed #fca5a5' }}>
+                                                <select
+                                                  style={{ ...styles.textarea, minHeight: 'auto', marginBottom: '8px', padding: '6px', fontSize: '12px' }}
+                                                  value={fileStatusData?.reason || ''}
+                                                  onChange={e => updateFileStatus(principle.id, practice.id, criterion.id, fname, 'rejected', e.target.value, fileStatusData?.comment)}
+                                                >
+                                                  <option value="" disabled>Select a reason...</option>
+                                                  {REJECTION_REASONS.map((r, i) => <option key={i} value={r}>{r}</option>)}
+                                                </select>
+
+                                                {(fileStatusData?.reason === 'Other' || fileStatusData?.reason) && (
+                                                  <input
+                                                    type="text"
+                                                    placeholder="Additional comment (optional)"
+                                                    style={{ ...styles.textarea, minHeight: 'auto', padding: '6px', fontSize: '12px' }}
+                                                    value={fileStatusData?.comment || ''}
+                                                    onChange={e => updateFileStatus(principle.id, practice.id, criterion.id, fname, 'rejected', fileStatusData?.reason, e.target.value)}
+                                                  />
+                                                )}
+                                              </div>
                                             )}
                                           </div>
-                                        )}
-                                      </div>
-                                    );
-                                  })}
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+
+                                  {/* Request additional proof comment */}
+                                  <div>
+                                    <div style={{ fontSize: '12px', fontWeight: '700', color: '#111827', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                      💬 Ask for additional file(s) or explanation:
+                                    </div>
+                                    <textarea
+                                      style={styles.textarea}
+                                      placeholder="Describe what missing proof is needed..."
+                                      value={review.proofRequestComment || ''}
+                                      onChange={e => updateReview(principle.id, practice.id, criterion.id, 'proofRequestComment', e.target.value)}
+                                    />
+                                  </div>
                                 </div>
                               )}
-                              
-                              <div style={{ fontSize: '12px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>
-                                Ask for additional file(s) or explanation (Optional):
-                              </div>
-                              <textarea
-                                style={styles.textarea}
-                                placeholder="Describe what missing proof is needed..."
-                                value={review.proofRequestComment || ''}
-                                onChange={e => updateReview(principle.id, practice.id, criterion.id, 'proofRequestComment', e.target.value)}
-                              />
                             </div>
                           </>
                         ) : (

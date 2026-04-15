@@ -15,7 +15,7 @@ import lombok.Setter;
 @Entity
 @Table(name = "users")
 @Inheritance(strategy = InheritanceType.SINGLE_TABLE)
-@DiscriminatorFormula("CASE WHEN dtype IN ('Organization', 'OrganizationAdmin') THEN 'Organization' ELSE dtype END")
+@DiscriminatorColumn(name = "dtype", discriminatorType = DiscriminatorType.STRING)
 @Getter
 @Setter
 public abstract class User {
